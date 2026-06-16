@@ -58,8 +58,13 @@ func main() {
 
 	// extract audio
 	parser.ExtractAudio(mapPath, "audio.mp3.temp")
+	defer os.Remove("audio.mp3.temp")
 
 	// test rendering the cursor video
 	renderer := render.NewRenderer(mapData, replayData)
-	renderer.Render("output.mp4", "audio.mp3.temp")
+	err = renderer.Render("output.mp4", "audio.mp3.temp")
+	if err != nil {
+		fmt.Printf("Error during rendering: %v\n", err)
+		os.Exit(1)
+	}
 }

@@ -1,6 +1,7 @@
 package render
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"os/exec"
@@ -112,8 +113,13 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 	args = append(args, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast", outputPath)
 
 	cmd := exec.Command("ffmpeg", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	stdin, _ := cmd.StdinPipe()
-	cmd.Start()
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("ffmpeg failed to start: %w", err)
+	}
 
 	dc := gg.NewContext(r.Width, r.Height)
 
@@ -148,7 +154,11 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 	}
 
 	stdin.Close()
-	return cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("ffmpeg error: %v\n-- LOG --\n%s", err, stderr.String())
+	}
+
+	return nil
 }
 
 func (r *Renderer) DrawBackground(dc *gg.Context) {
