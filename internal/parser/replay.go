@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"regexp"
 )
 
 type ReplayFrame struct {
@@ -22,16 +23,20 @@ type ReplayData struct {
 	Frames          []ReplayFrame
 }
 
+var hashMarkerRegex = regexp.MustCompile(`@[0-9a-fA-F]{64}`)
+
 func ParseReplay(path string) (*ReplayData, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	markerIndex := bytes.IndexByte(data, '@')
-	if markerIndex == -1 {
-		return nil, fmt.Errorf("could not find '@' marker in replay file")
+	loc := hashMarkerRegex.FindIndex(data)
+	if loc == nil {
+		return nil, fmt.Errorf("marker not found in file")
 	}
+
+	markerIndex := loc[0]
 
 	dataStart := markerIndex + 69
 	if dataStart >= len(data) {
