@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"os"
 	"os/exec"
 	"rhyplay/internal/parser"
 
@@ -100,8 +101,20 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 		}
 	}
 
+	// TODO: add hitsounds in more efficient way
 	if filterComplex != "" {
-		args = append(args, "-filter_complex", filterComplex)
+		f, err := os.CreateTemp("", "ffmpeg-filter-*.txt")
+		if err != nil {
+			return fmt.Errorf("failed to create filter script: %w", err)
+		}
+		defer os.Remove(f.Name())
+
+		if _, err := f.WriteString(filterComplex); err != nil {
+			return fmt.Errorf("failed to write filter script: %w", err)
+		}
+		f.Close()
+
+		args = append(args, "-filter_complex_script", f.Name())
 	}
 
 	args = append(args, "-map", "0:v")
