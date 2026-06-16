@@ -45,6 +45,17 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
 	}
 }
 
+func getSampleRate(path string) (int, error) {
+	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=sample_rate", "-of", "default=noprint_wrappers=1:nokey=1", path)
+	out, err := cmd.Output()
+	if err != nil {
+		return 44100, err
+	}
+	var sr int
+	fmt.Sscanf(string(out), "%d", &sr)
+	return sr, nil
+}
+
 func (r *Renderer) Render(outputPath string, audioPath string) error {
 	msPerFrame := 1000.0 / float64(r.FPS)
 	replayEndTime := float64(r.Replay[len(r.Replay)-1].Counter)
@@ -67,7 +78,13 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 	if audioPath != "" {
 		args = append(args, "-i", audioPath)
 		musicIdx = currentInputIdx
-		filterComplex += fmt.Sprintf("[%d:a]atempo=%.2f[bg];", musicIdx, r.SpeedMultiplier)
+
+		sampleRate, err := getSampleRate(audioPath)
+		if err != nil {
+			sampleRate = 44100
+		}
+
+		filterComplex += fmt.Sprintf("[%d:a]asetrate=%d*%.6f,aresample=44100[bg];", musicIdx, sampleRate, r.SpeedMultiplier)
 		audioMapLabel = "[bg]"
 		currentInputIdx++
 	}
