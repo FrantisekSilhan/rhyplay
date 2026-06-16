@@ -1,0 +1,65 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"rhyplay/internal/parser"
+	"rhyplay/internal/render"
+)
+
+func main() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: rhyplay <path_to_rhr_file> <path_to_rhm_file>")
+		os.Exit(1)
+	}
+
+	replayPath := os.Args[1]
+	fmt.Printf("Parsing replay: %s\n", replayPath)
+
+	replayData, err := parser.ParseReplay(replayPath)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully parsed %d frames!\n", len(replayData.Frames))
+	fmt.Println("----------------------------------------------------------------")
+	fmt.Printf("%-8s | %-8s | %-8s | %-8s | %-5s\n", "Counter", "X", "Y", "Val", "Hit")
+	fmt.Println("----------------------------------------------------------------")
+
+	for i, f := range replayData.Frames {
+		if i >= 20 {
+			fmt.Println("...")
+			break
+		}
+		fmt.Printf("%-8d | %-8.3f | %-8.3f | %-8.3f | %-5t\n",
+			f.Counter, f.X, f.Y, f.Val, f.Hit)
+	}
+
+	// parse the map file
+	mapPath := os.Args[2]
+	fmt.Printf("\nParsing map: %s\n", mapPath)
+
+	mapData, err := parser.ParseMap(mapPath)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully parsed map: %s\n", mapData.Title)
+	fmt.Printf("Notes:\n")
+	for i, note := range mapData.Notes {
+		if i >= 20 {
+			fmt.Println("...")
+			break
+		}
+		fmt.Printf("Time: %d, X: %.3f, Y: %.3f\n", note.Time, note.X, note.Y)
+	}
+
+	// extract audio
+	parser.ExtractAudio(mapPath, "audio.mp3.temp")
+
+	// test rendering the cursor video
+	renderer := render.NewRenderer(mapData, replayData)
+	renderer.Render("output.mp4", "audio.mp3.temp")
+}
