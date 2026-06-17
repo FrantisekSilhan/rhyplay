@@ -5,6 +5,7 @@ import (
 	"os"
 	"rhyplay/internal/parser"
 	"rhyplay/internal/render"
+	"rhyplay/internal/utils"
 )
 
 func main() {
@@ -40,7 +41,7 @@ func main() {
 	mapPath := os.Args[2]
 	fmt.Printf("\nParsing map: %s\n", mapPath)
 
-	mapData, err := parser.ParseMap(mapPath)
+	mapData, audioBuffer, err := parser.ParseMap(mapPath)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
@@ -57,12 +58,16 @@ func main() {
 	}
 
 	// extract audio
-	parser.ExtractAudio(mapPath, "audio.mp3.temp")
-	defer os.Remove("audio.mp3.temp")
+	audioFile, err := utils.SaveTempFile(audioBuffer, "audio-*.mp3")
+	if err != nil {
+		fmt.Printf("Error saving audio: %v\n", err)
+		os.Exit(1)
+	}
+	defer audioFile.Cleanup()
 
 	// test rendering the cursor video
 	renderer := render.NewRenderer(mapData, replayData)
-	err = renderer.Render("output.mp4", "audio.mp3.temp")
+	err = renderer.Render("output.mp4", audioFile.Path)
 	if err != nil {
 		fmt.Printf("Error during rendering: %v\n", err)
 		os.Exit(1)
