@@ -16,6 +16,14 @@ type Note struct {
 	Y    float64 `json:"Y"`
 }
 
+func toGameSpace(x, y float64) (float64, float64) {
+	return x - 1, y - 1
+}
+func toNoteSpace(x, y float64) Note {
+	gx, gy := toGameSpace(x, y)
+	return Note{X: gx, Y: gy}
+}
+
 type MapData struct {
 	SongName   string  `json:"SongName"`
 	Title      string  `json:"Title"`
@@ -95,6 +103,12 @@ func ParseMapZip(path string) (*MapData, []byte, error) {
 		return nil, nil, fmt.Errorf("failed to extract audio: %w", err)
 	}
 
+	for i := range mapData.Notes {
+		note := mapData.Notes[i]
+		mapData.Notes[i] = toNoteSpace(note.X, note.Y)
+		mapData.Notes[i].Time = note.Time
+	}
+
 	return &mapData, audioBytes, nil
 }
 
@@ -148,11 +162,9 @@ func ParseSSPMV1(p *FileParser) (*MapData, []byte, error) {
 			y = float64(p.ReadUInt8())
 		}
 
-		notes = append(notes, Note{
-			Time: time,
-			X:    x,
-			Y:    y,
-		})
+		note := toNoteSpace(x, y)
+		note.Time = time
+		notes = append(notes, note)
 	}
 
 	return &MapData{
@@ -275,11 +287,9 @@ func ParseSSPMV2(p *FileParser) (*MapData, []byte, error) {
 			y = float64(p.ReadBytes(1)[0])
 		}
 
-		notes = append(notes, Note{
-			Time: time,
-			X:    x,
-			Y:    y,
-		})
+		note := toNoteSpace(x, y)
+		note.Time = time
+		notes = append(notes, note)
 	}
 
 	return &MapData{

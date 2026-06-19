@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"math"
 	"os"
 	"os/exec"
 	"rhyplay/internal/config"
@@ -14,10 +15,9 @@ import (
 )
 
 type Renderer struct {
-	s               *config.Settings
-	Beatmap         *parser.MapData
-	Replay          []parser.ReplayFrame
-	SpeedMultiplier float32
+	s       *config.Settings
+	Beatmap *parser.MapData
+	Replay  *parser.ReplayData
 
 	Width, Height int
 	FPS           int
@@ -32,16 +32,15 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
 	size := float64(h) * (1.0 - (game.Padding * 2))
 
 	return &Renderer{
-		s:               s,
-		Beatmap:         b,
-		Replay:          r.Frames,
-		SpeedMultiplier: r.SpeedMultiplier,
-		Width:           w,
-		Height:          h,
-		FPS:             s.Video.FPS,
-		PlayAreaSize:    size,
-		OffsetX:         (float64(w) - size) / 2.0,
-		OffsetY:         (float64(h) - size) / 2.0,
+		s:            s,
+		Beatmap:      b,
+		Replay:       r,
+		Width:        w,
+		Height:       h,
+		FPS:          s.Video.FPS,
+		PlayAreaSize: size,
+		OffsetX:      (float64(w) - size) / 2.0,
+		OffsetY:      (float64(h) - size) / 2.0,
 	}
 }
 
@@ -58,8 +57,11 @@ func getSampleRate(path string) (int, error) {
 
 func (r *Renderer) Render(outputPath string, audioPath string) error {
 	msPerFrame := 1000.0 / float64(r.FPS)
-	replayEndTime := float64(r.Replay[len(r.Replay)-1].Counter)
-	videoDuration := replayEndTime / float64(r.SpeedMultiplier)
+	if len(r.Replay.Frames) < 2 {
+		return fmt.Errorf("replay contains too few frames")
+	}
+	replayEndTime := float64(r.Replay.Frames[len(r.Replay.Frames)-1].Progress)
+	videoDuration := replayEndTime / float64(r.Replay.SpeedMultiplier)
 
 	hitSoundPath := "sounds/hit.mp3"
 
@@ -84,7 +86,7 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 			sampleRate = 44100
 		}
 
-		filterComplex += fmt.Sprintf("[%d:a]asetrate=%d*%.6f,aresample=44100[bg];", musicIdx, sampleRate, r.SpeedMultiplier)
+		filterComplex += fmt.Sprintf("[%d:a]asetrate=%d*%.6f,aresample=44100[bg];", musicIdx, sampleRate, r.Replay.SpeedMultiplier)
 		audioMapLabel = "[bg]"
 		currentInputIdx++
 	}
@@ -94,9 +96,9 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 	currentInputIdx++
 
 	var hitLabels []string
-	for i, frame := range r.Replay {
+	for i, frame := range r.Replay.Frames {
 		if frame.Hit {
-			timestamp := (float64(frame.Counter) / 1000.0) / float64(r.SpeedMultiplier)
+			timestamp := (float64(frame.Progress) / 1000.0) / float64(r.Replay.SpeedMultiplier)
 			label := fmt.Sprintf("h%d", i)
 			filterComplex += fmt.Sprintf("[%d:a]adelay=%.0f|%.0f[%s];", hitIdx, timestamp*1000, timestamp*1000, label)
 			hitLabels = append(hitLabels, label)
@@ -155,17 +157,17 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 
 	replayIdx := 0
 	for currentTime := 0.0; currentTime <= videoDuration; currentTime += msPerFrame {
-		engineTime := currentTime * float64(r.SpeedMultiplier)
-		for replayIdx < len(r.Replay)-2 && float64(r.Replay[replayIdx+1].Counter) < engineTime {
+		engineTime := currentTime * float64(r.Replay.SpeedMultiplier)
+		for replayIdx < len(r.Replay.Frames)-2 && float64(r.Replay.Frames[replayIdx+1].Progress) < engineTime {
 			replayIdx++
 		}
-		f1, f2 := r.Replay[replayIdx], r.Replay[replayIdx+1]
-		alpha := calculateAlpha(float64(f1.Counter), float64(f2.Counter), engineTime)
+		f1, f2 := r.Replay.Frames[replayIdx], r.Replay.Frames[replayIdx+1]
+		alpha := calculateAlpha(float64(f1.Progress), float64(f2.Progress), engineTime)
 		curX := lerp32(f1.X, f2.X, alpha)
 		curY := -lerp32(f1.Y, f2.Y, alpha)
 
-		shiftX := (float64(curX) / game.CursorSensitivity) * -r.s.Visuals.ParallaxAmount
-		shiftY := (float64(curY) / game.CursorSensitivity) * -r.s.Visuals.ParallaxAmount
+		shiftX := -float64(curX) * r.s.Visuals.Parallax
+		shiftY := -float64(curY) * r.s.Visuals.Parallax
 
 		r.DrawBackground(dc)
 		r.DrawCorners(dc, r.OffsetX+shiftX, r.OffsetY+shiftY, r.PlayAreaSize, 100, 10)
@@ -199,31 +201,54 @@ func (r *Renderer) DrawNote(dc *gg.Context, note parser.Note, currentTime, shift
 	ar := r.s.Gameplay.ApproachRate
 	at := ad / ar
 
-	depth := (float64(note.Time) - currentTime) / (1000 * at) * ad / float64(r.SpeedMultiplier)
+	depth := (float64(note.Time) - currentTime) / (1000 * at) * ad / float64(r.Replay.SpeedMultiplier)
 
 	if depth > ad || depth < 0 {
 		return
 	}
 
 	perspective := game.CalcPerspective(depth)
-	currentSize := r.PlayAreaSize * game.NoteSizeMultiplier * perspective
-	currentLineWidth := game.BaseLineWidth * perspective
+	currentSize := r.PlayAreaSize * (game.NoteSize / game.GridSize) * perspective
 
 	relX, relY := game.GameToScreen(note.X, note.Y, r.PlayAreaSize, perspective)
 
 	centerX, centerY := (float64(r.Width)/2.0)+shiftX, (float64(r.Height)/2.0)+shiftY
 	drawX, drawY := centerX+relX, centerY+relY
 
-	fadeIn := 0.2
+	fadeIn := game.FadeIn / 100.0
 	progress := 1.0 - (depth / ad)
 	alpha := 1.0
 	if progress < fadeIn {
 		alpha = progress / fadeIn
 	}
 
+	if r.s.Visuals.Modifiers.Ghost {
+		startFade := 0.25
+		endFade := 0.9
+		if progress > startFade {
+			ratio := (progress - startFade) / (endFade - startFade)
+
+			if ratio > 1.0 {
+				ratio = 1.0
+			}
+
+			alpha -= ratio
+		}
+	} else if r.s.Visuals.Modifiers.FadeOut {
+		fadeOut := game.FadeOut / 100.0
+		alpha -= 1 - math.Min(1, (1-progress)/fadeOut)
+		if alpha < game.MinFadeOut {
+			alpha = game.MinFadeOut
+		}
+	}
+
+	if !r.s.Visuals.Modifiers.Pushback && float64(note.Time)-currentTime <= 0 {
+		alpha = 0
+	}
+
 	if alpha > 0 {
 		dc.SetRGBA255(r.s.Visuals.NoteRGB.ToIntAlpha(alpha))
-		dc.SetLineWidth(currentLineWidth)
+		dc.SetLineWidth(20.0 * perspective)
 		dc.DrawRoundedRectangle(drawX-currentSize/2, drawY-currentSize/2, currentSize, currentSize, currentSize*0.2)
 		dc.Stroke()
 	}
@@ -253,7 +278,7 @@ func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size, length, lineWidth flo
 }
 
 func (r *Renderer) DrawCursor(dc *gg.Context, x, y float32, shiftX, shiftY float64) {
-	visualSize := r.PlayAreaSize * 0.06
+	visualSize := r.PlayAreaSize * (game.CursorSize / game.GridSize)
 
 	relX, relY := game.CursorToScreen(float64(x), float64(y), r.PlayAreaSize)
 

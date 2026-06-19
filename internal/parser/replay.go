@@ -11,11 +11,11 @@ import (
 )
 
 type ReplayFrame struct {
-	Counter uint32
-	X       float32
-	Y       float32
-	Val     float32
-	Hit     bool
+	Progress uint32
+	X        float32
+	Y        float32
+	Val      float32
+	Hit      bool
 }
 
 type ReplayData struct {

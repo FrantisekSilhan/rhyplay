@@ -47,7 +47,7 @@ func main() {
 
 	fmt.Printf("Successfully parsed %d frames!\n", len(replayData.Frames))
 	fmt.Println("----------------------------------------------------------------")
-	fmt.Printf("%-8s | %-8s | %-8s | %-8s | %-5s\n", "Counter", "X", "Y", "Val", "Hit")
+	fmt.Printf("%-8s | %-8s | %-8s\n", "Progress", "X", "Y")
 	fmt.Println("----------------------------------------------------------------")
 
 	for i, f := range replayData.Frames {
@@ -55,8 +55,8 @@ func main() {
 			fmt.Println("...")
 			break
 		}
-		fmt.Printf("%-8d | %-8.3f | %-8.3f | %-8.3f | %-5t\n",
-			f.Counter, f.X, f.Y, f.Val, f.Hit)
+		fmt.Printf("%-8d | %-8.3f | %-8.3f\n",
+			f.Progress, f.X, f.Y)
 	}
 
 	// parse the map file

@@ -3,14 +3,18 @@ package game
 const (
 	Padding = 0.2
 
-	HitWindowMS       = 55.0
-	InternalGridSize  = 2.74
-	CursorSensitivity = 1.37
-	HitboxScale       = 1.2
+	HitWindowMS = 55.0
+	GridSize    = 3.0
+	CursorSize  = 0.2625
+	HitBoxSize  = 0.07
+	NoteSize    = 0.875
 
-	NoteSizeMultiplier = 0.3
-	BaseLineWidth      = 20.0
-	ViewDistance       = 2.0
+	BaseLineWidth = 20.0
+	ViewDistance  = 3.75
+
+	FadeIn     = 15
+	FadeOut    = 25
+	MinFadeOut = 0.25
 )
 
 func GetEffectiveHitWindows(speed float32) float64 {
@@ -22,24 +26,15 @@ func CalcPerspective(depth float64) float64 {
 }
 
 func GameToScreen(gx, gy, playAreaSize, perspective float64) (sx, sy float64) {
-	relX := (gx - 1.0) * 0.5
-	relY := (gy - 1.0) * 0.5
-
-	currentSize := playAreaSize * NoteSizeMultiplier * perspective
-	currentLineWidth := BaseLineWidth * perspective
-	visualTotalSize := currentSize + (currentLineWidth * 2)
-	usableArea := playAreaSize - visualTotalSize
-
-	sx = relX * usableArea * perspective
-	sy = relY * usableArea * perspective
+	scale := playAreaSize / GridSize
+	sx = gx * scale * perspective
+	sy = gy * scale * perspective
 	return
 }
 
 func CursorToScreen(cx, cy, playAreaSize float64) (sx, sy float64) {
-	hitboxSize := playAreaSize * 0.06
-	usableArea := playAreaSize - hitboxSize
-
-	sx = (cx / InternalGridSize) * usableArea
-	sy = (cy / InternalGridSize) * usableArea
+	scale := playAreaSize / GridSize
+	sx = cx * scale
+	sy = cy * scale
 	return
 }
