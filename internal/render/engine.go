@@ -6,12 +6,15 @@ import (
 	"image"
 	"os"
 	"os/exec"
+	"rhyplay/internal/config"
+	"rhyplay/internal/game"
 	"rhyplay/internal/parser"
 
 	"github.com/fogleman/gg"
 )
 
 type Renderer struct {
+	s               *config.Settings
 	Beatmap         *parser.MapData
 	Replay          []parser.ReplayFrame
 	SpeedMultiplier float32
@@ -21,27 +24,24 @@ type Renderer struct {
 
 	PlayAreaSize     float64
 	OffsetX, OffsetY float64
-
-	ParallaxAmount float64
 }
 
 func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
-	// TODO: Make everything configurable
-	w, h := 1920, 1080
-	padding := 0.2
-	size := float64(h) * (1.0 - (padding * 2))
+	s := config.Current
+	w, h := s.Video.Width, s.Video.Height
+	size := float64(h) * (1.0 - (game.Padding * 2))
 
 	return &Renderer{
+		s:               s,
 		Beatmap:         b,
 		Replay:          r.Frames,
 		SpeedMultiplier: r.SpeedMultiplier,
 		Width:           w,
 		Height:          h,
-		FPS:             60,
+		FPS:             s.Video.FPS,
 		PlayAreaSize:    size,
 		OffsetX:         (float64(w) - size) / 2.0,
 		OffsetY:         (float64(h) - size) / 2.0,
-		ParallaxAmount:  40.0,
 	}
 }
 
@@ -164,11 +164,8 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 		curX := lerp32(f1.X, f2.X, alpha)
 		curY := -lerp32(f1.Y, f2.Y, alpha)
 
-		normX := float64(curX) / 1.37
-		normY := float64(curY) / 1.37
-
-		shiftX := normX * -r.ParallaxAmount
-		shiftY := normY * -r.ParallaxAmount
+		shiftX := (float64(curX) / game.CursorSensitivity) * -r.s.Visuals.ParallaxAmount
+		shiftY := (float64(curY) / game.CursorSensitivity) * -r.s.Visuals.ParallaxAmount
 
 		r.DrawBackground(dc)
 		r.DrawCorners(dc, r.OffsetX+shiftX, r.OffsetY+shiftY, r.PlayAreaSize, 100, 10)
@@ -192,18 +189,15 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 }
 
 func (r *Renderer) DrawBackground(dc *gg.Context) {
-	dc.SetRGB(0.05, 0.05, 0.05)
+	c := r.s.Visuals.BackgroundRGB
+	dc.SetRGB255(c.ToInt())
 	dc.Clear()
 }
 
 func (r *Renderer) DrawNote(dc *gg.Context, note parser.Note, currentTime, shiftX, shiftY float64) {
-	ad := 20.0
-	ar := 25.0
+	ad := r.s.Gameplay.ApproachDistance
+	ar := r.s.Gameplay.ApproachRate
 	at := ad / ar
-
-	fadeIn := 0.2
-	noteSizeMultiplier := 0.3
-	baseLineWidth := 20.0
 
 	depth := (float64(note.Time) - currentTime) / (1000 * at) * ad / float64(r.SpeedMultiplier)
 
@@ -211,23 +205,16 @@ func (r *Renderer) DrawNote(dc *gg.Context, note parser.Note, currentTime, shift
 		return
 	}
 
-	viewDist := 2.0
-	perspective := viewDist / (depth + viewDist)
+	perspective := game.CalcPerspective(depth)
+	currentSize := r.PlayAreaSize * game.NoteSizeMultiplier * perspective
+	currentLineWidth := game.BaseLineWidth * perspective
 
-	currentSize := r.PlayAreaSize * noteSizeMultiplier * perspective
-	currentLineWidth := baseLineWidth * perspective
-
-	visualTotalSize := currentSize + (currentLineWidth * 2)
-	usableArea := r.PlayAreaSize - visualTotalSize
-
-	relX := (note.X - 1.0) * 0.5
-	relY := (note.Y - 1.0) * 0.5
+	relX, relY := game.GameToScreen(note.X, note.Y, r.PlayAreaSize, perspective)
 
 	centerX, centerY := (float64(r.Width)/2.0)+shiftX, (float64(r.Height)/2.0)+shiftY
+	drawX, drawY := centerX+relX, centerY+relY
 
-	drawX := centerX + (relX * usableArea * perspective)
-	drawY := centerY + (relY * usableArea * perspective)
-
+	fadeIn := 0.2
 	progress := 1.0 - (depth / ad)
 	alpha := 1.0
 	if progress < fadeIn {
@@ -235,23 +222,16 @@ func (r *Renderer) DrawNote(dc *gg.Context, note parser.Note, currentTime, shift
 	}
 
 	if alpha > 0 {
-		radius := currentSize * 0.2
-		dc.SetRGBA(1, 1, 1, alpha)
+		dc.SetRGBA255(r.s.Visuals.NoteRGB.ToIntAlpha(alpha))
 		dc.SetLineWidth(currentLineWidth)
-
-		dc.DrawRoundedRectangle(
-			drawX-currentSize/2,
-			drawY-currentSize/2,
-			currentSize,
-			currentSize,
-			radius,
-		)
+		dc.DrawRoundedRectangle(drawX-currentSize/2, drawY-currentSize/2, currentSize, currentSize, currentSize*0.2)
 		dc.Stroke()
 	}
 }
 
 func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size, length, lineWidth float64) {
-	dc.SetRGB(0.5, 0.5, 0.5)
+	c := r.s.Visuals.Background.CornersRGB
+	dc.SetRGB255(c.ToInt())
 	dc.SetLineWidth(lineWidth)
 
 	dc.MoveTo(x, y+length)
@@ -273,26 +253,19 @@ func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size, length, lineWidth flo
 }
 
 func (r *Renderer) DrawCursor(dc *gg.Context, x, y float32, shiftX, shiftY float64) {
-	hitboxSize := r.PlayAreaSize * 0.06
-
 	visualSize := r.PlayAreaSize * 0.06
 
-	usableArea := r.PlayAreaSize - hitboxSize
-
-	normX := float64(x) / 2.74
-	normY := float64(y) / 2.74
+	relX, relY := game.CursorToScreen(float64(x), float64(y), r.PlayAreaSize)
 
 	centerX, centerY := (float64(r.Width)/2.0)+shiftX, (float64(r.Height)/2.0)+shiftY
+	screenX, screenY := centerX+relX, centerY+relY
 
-	screenX := centerX + (normX * usableArea)
-	screenY := centerY + (normY * usableArea)
-
-	dc.SetRGBA(1, 1, 1, 0.3)
+	dc.SetRGBA255(r.s.Visuals.Cursor.InnerRGBA.ToInt())
 	dc.DrawCircle(screenX, screenY, visualSize/2)
 	dc.Fill()
 
-	dc.SetRGBA(1, 1, 1, 1.0)
-	dc.SetLineWidth(8)
+	dc.SetRGBA255(r.s.Visuals.Cursor.OuterRGBA.ToInt())
+	dc.SetLineWidth(r.s.Visuals.Cursor.OuterSize)
 	dc.DrawCircle(screenX, screenY, visualSize/2)
 	dc.Stroke()
 }

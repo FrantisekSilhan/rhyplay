@@ -3,12 +3,34 @@ package main
 import (
 	"fmt"
 	"os"
+	"rhyplay/internal/config"
 	"rhyplay/internal/parser"
 	"rhyplay/internal/render"
 	"rhyplay/internal/utils"
+	"strings"
 )
 
 func main() {
+	configPath := "settings.json"
+	changed, err := config.Load(configPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "corrupted") {
+			fmt.Printf("ERROR: the settings file '%s' is corrupted or has invalid formatting\n", configPath)
+			fmt.Println("details:", err)
+			fmt.Println("\nplease fix the file manually or delete it to reset to defaults")
+		} else {
+			fmt.Println("unexpected error loading config:", err)
+		}
+		os.Exit(1)
+	}
+
+	if changed {
+		fmt.Printf("NOTICE: '%s' was missing or outdated\n", configPath)
+		fmt.Println("the file has been updated with default values for missing settings")
+		fmt.Println("please check the settings and restart the application")
+		os.Exit(0)
+	}
+
 	if len(os.Args) < 3 {
 		fmt.Println("Usage: rhyplay <path_to_rhr_file> <path_to_rhm_file>")
 		os.Exit(1)
@@ -65,7 +87,6 @@ func main() {
 	}
 	defer audioFile.Cleanup()
 
-	// test rendering the cursor video
 	renderer := render.NewRenderer(mapData, replayData)
 	err = renderer.Render("output.mp4", audioFile.Path)
 	if err != nil {
