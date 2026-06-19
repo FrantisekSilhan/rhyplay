@@ -162,7 +162,7 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 		f1, f2 := r.Replay[replayIdx], r.Replay[replayIdx+1]
 		alpha := calculateAlpha(float64(f1.Counter), float64(f2.Counter), engineTime)
 		curX := lerp32(f1.X, f2.X, alpha)
-		curY := lerp32(f1.Y, f2.Y, alpha)
+		curY := -lerp32(f1.Y, f2.Y, alpha)
 
 		normX := float64(curX) / 1.37
 		normY := float64(curY) / 1.37
@@ -221,7 +221,7 @@ func (r *Renderer) DrawNote(dc *gg.Context, note parser.Note, currentTime, shift
 	usableArea := r.PlayAreaSize - visualTotalSize
 
 	relX := (note.X - 1.0) * 0.5
-	relY := (1.0 - note.Y) * 0.5
+	relY := (note.Y - 1.0) * 0.5
 
 	centerX, centerY := (float64(r.Width)/2.0)+shiftX, (float64(r.Height)/2.0)+shiftY
 
