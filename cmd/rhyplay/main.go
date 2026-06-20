@@ -102,10 +102,11 @@ func main() {
 	}
 
 	fmt.Printf("\n\n")
-	fmt.Println("-----------------------------------------------------------")
+	separatorWidth := getHeaderWidth()
+	printSeparator(separatorWidth)
 	fmt.Printf(" Success! Render finished in %s\n", time.Since(start).Truncate(time.Second))
 	fmt.Println(" Saved to: output.mp4")
-	fmt.Println("-----------------------------------------------------------")
+	printSeparator(separatorWidth)
 }
 
 func handleConfigError(path string, err error) {
@@ -118,8 +119,17 @@ func handleConfigError(path string, err error) {
 	os.Exit(1)
 }
 
+func getHeaderWidth() int {
+	return len(fmt.Sprintf("--- %s %s | %s ---", AppName, Version, Repository))
+}
+
+func printSeparator(width int) {
+	fmt.Println(strings.Repeat("-", width))
+}
+
 func printHeader() {
-	fmt.Println("-----------------------------------------------------------")
+	width := getHeaderWidth()
+	printSeparator(width)
 	fmt.Printf("--- %s%s%s %s | %s ---\n", ColorCyan, AppName, ColorReset, Version, Repository)
-	fmt.Println("-----------------------------------------------------------")
+	printSeparator(width)
 }
