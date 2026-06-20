@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Binary
+        shell: pwsh
+        run: |
+          $val = "${{ github.ref_name }}"
+          go build -ldflags="-X 'main.Version=$val'" -o "rhyplay-$val.exe" ./cmd/renderer
+
+      - name: Download FFmpeg
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_temp
+          Get-ChildItem -Path "ffmpeg_temp" -Filter "ffmpeg.exe" -Recurse | Move-Item -Destination "./ffmpeg.exe"
+
+      - name: Create Release Zip
+        shell: pwsh
+        run: |
+          $val = "${{ github.ref_name }}"
+          $dirName = "rhyplay-$val"
+          New-Item -ItemType Directory -Path $dirName
+          Move-Item "rhyplay-$val.exe" -Destination "$dirName/"
+          Move-Item "ffmpeg.exe" -Destination "$dirName/"
+          Copy-Item -Recurse "sounds" -Destination "$dirName/"
+          Compress-Archive -Path $dirName -DestinationPath "$dirName-win.zip"
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: rhyplay-${{ github.ref_name }}-win.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
