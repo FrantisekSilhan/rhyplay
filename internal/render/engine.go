@@ -172,7 +172,8 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 		r.DrawBackground(dc)
 		r.DrawCorners(dc, r.OffsetX+shiftX, r.OffsetY+shiftY, r.PlayAreaSize, 100, 10)
 
-		for _, note := range r.Beatmap.Notes {
+		for i := len(r.Beatmap.Notes) - 1; i >= 0; i-- {
+			note := r.Beatmap.Notes[i]
 			r.DrawNote(dc, note, engineTime, shiftX, shiftY)
 		}
 
@@ -191,7 +192,7 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 }
 
 func (r *Renderer) DrawBackground(dc *gg.Context) {
-	c := r.s.Visuals.BackgroundRGB
+	c := r.s.Visuals.Background.RGB
 	dc.SetRGB255(c.ToInt())
 	dc.Clear()
 }
@@ -247,7 +248,7 @@ func (r *Renderer) DrawNote(dc *gg.Context, note parser.Note, currentTime, shift
 	}
 
 	if alpha > 0 {
-		dc.SetRGBA255(r.s.Visuals.NoteRGB.ToIntAlpha(alpha))
+		dc.SetRGBA255(r.s.Visuals.NoteRGB[note.NoteIdx%len(r.s.Visuals.NoteRGB)].ToIntAlpha(alpha))
 		dc.SetLineWidth(20.0 * perspective)
 		dc.DrawRoundedRectangle(drawX-currentSize/2, drawY-currentSize/2, currentSize, currentSize, currentSize*0.2)
 		dc.Stroke()
@@ -278,7 +279,7 @@ func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size, length, lineWidth flo
 }
 
 func (r *Renderer) DrawCursor(dc *gg.Context, x, y float32, shiftX, shiftY float64) {
-	visualSize := r.PlayAreaSize * (game.CursorSize / game.GridSize)
+	visualSize := r.PlayAreaSize * ((game.CursorSize * config.Current.Visuals.Cursor.Size) / game.GridSize)
 
 	relX, relY := game.CursorToScreen(float64(x), float64(y), r.PlayAreaSize)
 

@@ -11,9 +11,10 @@ import (
 )
 
 type Note struct {
-	Time int     `json:"Time"`
-	X    float64 `json:"X"`
-	Y    float64 `json:"Y"`
+	Time    int     `json:"Time"`
+	X       float64 `json:"X"`
+	Y       float64 `json:"Y"`
+	NoteIdx int     `json:"-"`
 }
 
 func toGameSpace(x, y float64) (float64, float64) {
@@ -107,6 +108,7 @@ func ParseMapZip(path string) (*MapData, []byte, error) {
 		note := mapData.Notes[i]
 		mapData.Notes[i] = toNoteSpace(note.X, note.Y)
 		mapData.Notes[i].Time = note.Time
+		mapData.Notes[i].NoteIdx = i
 	}
 
 	return &mapData, audioBytes, nil
@@ -164,6 +166,7 @@ func ParseSSPMV1(p *FileParser) (*MapData, []byte, error) {
 
 		note := toNoteSpace(x, y)
 		note.Time = time
+		note.NoteIdx = int(i)
 		notes = append(notes, note)
 	}
 
@@ -289,6 +292,7 @@ func ParseSSPMV2(p *FileParser) (*MapData, []byte, error) {
 
 		note := toNoteSpace(x, y)
 		note.Time = time
+		note.NoteIdx = int(i)
 		notes = append(notes, note)
 	}
 

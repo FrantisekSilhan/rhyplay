@@ -45,16 +45,16 @@ type Settings struct {
 			FadeOut  bool `json:"fade_out"`
 			Pushback bool `json:"pushback"`
 		}
-		Parallax      float64 `json:"parallax"`
-		BackgroundRGB RGB     `json:"background_rgb"`
-		NoteRGB       RGB     `json:"note_rgb"`
-		Cursor        struct {
+		Parallax float64 `json:"parallax"`
+		NoteRGB  []RGB   `json:"note_rgb"`
+		Cursor   struct {
 			Size      float64 `json:"size"`
 			InnerRGBA RGBA    `json:"inner_rgba"`
 			OuterRGBA RGBA    `json:"outer_rgba"`
 			OuterSize float64 `json:"outer_size"`
 		} `json:"cursor"`
 		Background struct {
+			RGB        RGB `json:"rgb"`
 			CornersRGB RGB `json:"corners_rgb"`
 		} `json:"background"`
 	} `json:"visuals"`
@@ -65,17 +65,17 @@ var Current *Settings
 func NewDefault() *Settings {
 	s := &Settings{}
 	s.Video.Width, s.Video.Height, s.Video.FPS = 1920, 1080, 60
-	s.Gameplay.ApproachDistance, s.Gameplay.ApproachRate = 20.0, 32.0
+	s.Gameplay.ApproachDistance, s.Gameplay.ApproachRate = 40.0, 40.0
 	s.Visuals.Modifiers.Ghost = false
 	s.Visuals.Modifiers.FadeOut = false
 	s.Visuals.Modifiers.Pushback = false
-	s.Visuals.Parallax = 40.0
-	s.Visuals.BackgroundRGB = RGB{12, 12, 12}
-	s.Visuals.NoteRGB = RGB{229, 229, 229}
+	s.Visuals.Parallax = 5.0
+	s.Visuals.NoteRGB = []RGB{{229, 229, 229}}
 	s.Visuals.Cursor.Size = 1.0
 	s.Visuals.Cursor.InnerRGBA = RGBA{255, 255, 255, 76}
 	s.Visuals.Cursor.OuterRGBA = RGBA{255, 255, 255, 255}
 	s.Visuals.Cursor.OuterSize = 8.0
+	s.Visuals.Background.RGB = RGB{12, 12, 12}
 	s.Visuals.Background.CornersRGB = RGB{127, 127, 127}
 	return s
 }
