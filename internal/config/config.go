@@ -27,6 +27,19 @@ func (c RGBA) ToInt() (r, g, b, a int) {
 	return int(c[0]), int(c[1]), int(c[2]), int(c[3])
 }
 
+type Shape struct {
+	RoundCorners float64 `json:"round_corners"`
+	LineWidth    float64 `json:"line_width"`
+	NoteShape    string  `json:"note_shape"`
+	Ngon         struct {
+		Sides int     `json:"sides"`
+		Angle float64 `json:"angle"`
+	} `json:"ngon"`
+	Weirdo struct {
+		RoundedCorners [4]bool `json:"rounded_corners"`
+	} `json:"weirdo"`
+}
+
 type Settings struct {
 	Video struct {
 		Width  int `json:"width"`
@@ -44,14 +57,36 @@ type Settings struct {
 			Ghost    bool `json:"ghost"`
 			FadeOut  bool `json:"fade_out"`
 			Pushback bool `json:"pushback"`
-		}
+		} `json:"modifiers"`
 		Parallax float64 `json:"parallax"`
-		NoteRGB  []RGB   `json:"note_rgb"`
-		Cursor   struct {
-			Size      float64 `json:"size"`
-			InnerRGBA RGBA    `json:"inner_rgba"`
-			OuterRGBA RGBA    `json:"outer_rgba"`
-			OuterSize float64 `json:"outer_size"`
+		Note     struct {
+			RGB  []RGB `json:"rgb"`
+			Fill struct {
+				Enabled bool   `json:"enabled"`
+				Mode    string `json:"mode"` // "solid" or "custom"
+				Solid   struct {
+					Alpha uint8 `json:"alpha"`
+				} `json:"solid"`
+				Custom struct {
+					RGBA []RGBA `json:"rgba"`
+				} `json:"custom"`
+			} `json:"fill"`
+			Shape Shape `json:"shape"`
+		} `json:"note"`
+		Cursor struct {
+			Size float64 `json:"size"`
+			RGBA RGBA    `json:"rgba"`
+			Fill struct {
+				Enabled bool   `json:"enabled"`
+				Mode    string `json:"mode"` // "solid" or "custom"
+				Solid   struct {
+					Alpha uint8 `json:"alpha"`
+				} `json:"solid"`
+				Custom struct {
+					RGBA RGBA `json:"rgba"`
+				} `json:"custom"`
+			} `json:"fill"`
+			Shape Shape `json:"shape"`
 		} `json:"cursor"`
 		Background struct {
 			RGB        RGB `json:"rgb"`
@@ -70,11 +105,32 @@ func NewDefault() *Settings {
 	s.Visuals.Modifiers.FadeOut = false
 	s.Visuals.Modifiers.Pushback = false
 	s.Visuals.Parallax = 5.0
-	s.Visuals.NoteRGB = []RGB{{229, 229, 229}}
+	s.Visuals.Note.RGB = []RGB{{229, 229, 229}}
+	s.Visuals.Note.Fill.Enabled = false
+	s.Visuals.Note.Fill.Mode = "solid"
+	s.Visuals.Note.Fill.Solid.Alpha = 64
+	s.Visuals.Note.Fill.Custom.RGBA = []RGBA{{229, 229, 229, 64}}
+	s.Visuals.Note.Shape.RoundCorners = 0.25
+	s.Visuals.Note.Shape.NoteShape = "square"
+	s.Visuals.Note.Shape.LineWidth = 20.0
+	s.Visuals.Note.Shape.Ngon.Sides = 6
+	s.Visuals.Note.Shape.Ngon.Angle = 0.0
+	s.Visuals.Note.Shape.Weirdo.RoundedCorners = [4]bool{false, true, false, true}
 	s.Visuals.Cursor.Size = 1.0
-	s.Visuals.Cursor.InnerRGBA = RGBA{255, 255, 255, 76}
-	s.Visuals.Cursor.OuterRGBA = RGBA{255, 255, 255, 255}
-	s.Visuals.Cursor.OuterSize = 8.0
+	s.Visuals.Cursor.RGBA = RGBA{255, 255, 255, 255}
+
+	s.Visuals.Cursor.Fill.Enabled = true
+	s.Visuals.Cursor.Fill.Mode = "solid"
+	s.Visuals.Cursor.Fill.Solid.Alpha = 64
+	s.Visuals.Cursor.Fill.Custom.RGBA = RGBA{255, 255, 255, 64}
+
+	s.Visuals.Cursor.Shape.LineWidth = 8.0
+	s.Visuals.Cursor.Shape.RoundCorners = 0.25
+	s.Visuals.Cursor.Shape.NoteShape = "circle"
+	s.Visuals.Cursor.Shape.Ngon.Sides = 6
+	s.Visuals.Cursor.Shape.Ngon.Angle = 0.0
+	s.Visuals.Cursor.Shape.Weirdo.RoundedCorners = [4]bool{false, true, false, true}
+
 	s.Visuals.Background.RGB = RGB{12, 12, 12}
 	s.Visuals.Background.CornersRGB = RGB{127, 127, 127}
 	return s

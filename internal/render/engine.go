@@ -166,15 +166,15 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 		curX := lerp32(f1.X, f2.X, alpha)
 		curY := -lerp32(f1.Y, f2.Y, alpha)
 
-		shiftX := -float64(curX) * r.s.Visuals.Parallax
-		shiftY := -float64(curY) * r.s.Visuals.Parallax
+		shiftX := -curX * r.s.Visuals.Parallax
+		shiftY := -curY * r.s.Visuals.Parallax
 
 		r.DrawBackground(dc)
 		r.DrawCorners(dc, r.OffsetX+shiftX, r.OffsetY+shiftY, r.PlayAreaSize, 100, 10)
 
 		for i := len(r.Beatmap.Notes) - 1; i >= 0; i-- {
 			note := r.Beatmap.Notes[i]
-			r.DrawNote(dc, note, engineTime, shiftX, shiftY)
+			r.SetupNote(dc, note, engineTime, shiftX, shiftY)
 		}
 
 		r.DrawCursor(dc, curX, curY, shiftX, shiftY)
@@ -197,7 +197,7 @@ func (r *Renderer) DrawBackground(dc *gg.Context) {
 	dc.Clear()
 }
 
-func (r *Renderer) DrawNote(dc *gg.Context, note parser.Note, currentTime, shiftX, shiftY float64) {
+func (r *Renderer) SetupNote(dc *gg.Context, note parser.Note, currentTime, shiftX, shiftY float64) {
 	ad := r.s.Gameplay.ApproachDistance
 	ar := r.s.Gameplay.ApproachRate
 	at := ad / ar
@@ -248,11 +248,116 @@ func (r *Renderer) DrawNote(dc *gg.Context, note parser.Note, currentTime, shift
 	}
 
 	if alpha > 0 {
-		dc.SetRGBA255(r.s.Visuals.NoteRGB[note.NoteIdx%len(r.s.Visuals.NoteRGB)].ToIntAlpha(alpha))
-		dc.SetLineWidth(20.0 * perspective)
-		dc.DrawRoundedRectangle(drawX-currentSize/2, drawY-currentSize/2, currentSize, currentSize, currentSize*0.2)
-		dc.Stroke()
+		r.DrawNote(dc, alpha, note.NoteIdx, drawX-currentSize/2, drawY-currentSize/2, currentSize, perspective)
 	}
+}
+
+type ShapeDrawer func(s config.Shape, dc *gg.Context, x, y, size float64)
+
+var noteShapes = map[string]ShapeDrawer{
+	"square": func(s config.Shape, dc *gg.Context, x, y, size float64) {
+		dc.DrawRoundedRectangle(x, y, size, size, s.RoundCorners*size)
+	},
+	"circle": func(s config.Shape, dc *gg.Context, x, y, size float64) {
+		radius := size / 2
+		dc.DrawCircle(x+radius, y+radius, radius)
+	},
+	"ngon": func(s config.Shape, dc *gg.Context, x, y, size float64) {
+		drawNgon(dc, x, y, size, s.Ngon.Sides, s.Ngon.Angle)
+	},
+	"weirdo": func(s config.Shape, dc *gg.Context, x, y, size float64) {
+		radius := size * s.RoundCorners
+		rc := s.Weirdo.RoundedCorners
+		drawCustomRounded(dc, x, y, size, radius, rc[0], rc[1], rc[2], rc[3])
+	},
+}
+
+func drawNgon(dc *gg.Context, x, y, size float64, n int, a float64) {
+	if n < 3 {
+		n = 3
+	}
+	radius := size / 2
+	cx, cy := x+radius, y+radius
+
+	rotation := a * (math.Pi / 180.0)
+
+	for i := 0; i < n; i++ {
+		angle := float64(i)*2*math.Pi/float64(n) - math.Pi/2 + rotation
+
+		px := cx + radius*math.Cos(angle)
+		py := cy + radius*math.Sin(angle)
+
+		if i == 0 {
+			dc.MoveTo(px, py)
+		} else {
+			dc.LineTo(px, py)
+		}
+	}
+	dc.ClosePath()
+}
+
+func drawCustomRounded(dc *gg.Context, x, y, s, r float64, tl, tr, br, bl bool) {
+	if tl {
+		dc.MoveTo(x+r, y)
+	} else {
+		dc.MoveTo(x, y)
+	}
+
+	if tr {
+		dc.LineTo(x+s-r, y)
+		dc.DrawArc(x+s-r, y+r, r, 1.5*math.Pi, 2*math.Pi)
+	} else {
+		dc.LineTo(x+s, y)
+	}
+
+	if br {
+		dc.LineTo(x+s, y+s-r)
+		dc.DrawArc(x+s-r, y+s-r, r, 0, 0.5*math.Pi)
+	} else {
+		dc.LineTo(x+s, y+s)
+	}
+
+	if bl {
+		dc.LineTo(x+r, y+s)
+		dc.DrawArc(x+r, y+s-r, r, 0.5*math.Pi, math.Pi)
+	} else {
+		dc.LineTo(x, y+s)
+	}
+
+	if tl {
+		dc.LineTo(x, y+r)
+		dc.DrawArc(x+r, y+r, r, math.Pi, 1.5*math.Pi)
+	} else {
+		dc.LineTo(x, y)
+	}
+	dc.ClosePath()
+}
+
+func (r *Renderer) DrawNote(dc *gg.Context, alpha float64, noteIdx int, x, y, size, perspective float64) {
+	s := r.s.Visuals.Note.Shape
+	f := r.s.Visuals.Note.Fill
+
+	if drawer, ok := noteShapes[s.NoteShape]; ok {
+		drawer(s, dc, x, y, size)
+	} else {
+		dc.DrawRoundedRectangle(x, y, size, size, s.RoundCorners*size)
+	}
+
+	if f.Enabled {
+		if f.Mode == "custom" && len(f.Custom.RGBA) > 0 {
+			fillColor := f.Custom.RGBA[noteIdx%len(f.Custom.RGBA)]
+			dc.SetRGBA255(fillColor.ToInt())
+		} else {
+			strokeColor := r.s.Visuals.Note.RGB[noteIdx%len(r.s.Visuals.Note.RGB)]
+			dc.SetRGBA255(strokeColor.ToIntAlpha(alpha * (float64(f.Solid.Alpha) / 255.0)))
+		}
+		dc.FillPreserve()
+	}
+
+	color := r.s.Visuals.Note.RGB[noteIdx%len(r.s.Visuals.Note.RGB)]
+	dc.SetRGBA255(color.ToIntAlpha(alpha))
+	dc.SetLineWidth(s.LineWidth * perspective)
+	dc.Stroke()
 }
 
 func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size, length, lineWidth float64) {
@@ -278,25 +383,44 @@ func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size, length, lineWidth flo
 	dc.Stroke()
 }
 
-func (r *Renderer) DrawCursor(dc *gg.Context, x, y float32, shiftX, shiftY float64) {
-	visualSize := r.PlayAreaSize * ((game.CursorSize * config.Current.Visuals.Cursor.Size) / game.GridSize)
+func (r *Renderer) DrawCursor(dc *gg.Context, x, y, shiftX, shiftY float64) {
+	size := r.PlayAreaSize * ((game.CursorSize * config.Current.Visuals.Cursor.Size) / game.GridSize)
 
 	relX, relY := game.CursorToScreen(float64(x), float64(y), r.PlayAreaSize)
 
 	centerX, centerY := (float64(r.Width)/2.0)+shiftX, (float64(r.Height)/2.0)+shiftY
 	screenX, screenY := centerX+relX, centerY+relY
 
-	dc.SetRGBA255(r.s.Visuals.Cursor.InnerRGBA.ToInt())
-	dc.DrawCircle(screenX, screenY, visualSize/2)
-	dc.Fill()
+	s := r.s.Visuals.Cursor.Shape
+	f := r.s.Visuals.Cursor.Fill
 
-	dc.SetRGBA255(r.s.Visuals.Cursor.OuterRGBA.ToInt())
-	dc.SetLineWidth(r.s.Visuals.Cursor.OuterSize)
-	dc.DrawCircle(screenX, screenY, visualSize/2)
+	drawX := screenX - size/2
+	drawY := screenY - size/2
+
+	if drawer, ok := noteShapes[s.NoteShape]; ok {
+		drawer(s, dc, drawX, drawY, size)
+	} else {
+		dc.DrawCircle(screenX, screenY, size/2)
+	}
+
+	if f.Enabled {
+		if f.Mode == "custom" {
+			dc.SetRGBA255(f.Custom.RGBA.ToInt())
+		} else {
+			strokeColor := r.s.Visuals.Cursor.RGBA
+			strokeColor[3] = f.Solid.Alpha
+			dc.SetRGBA255(strokeColor.ToInt())
+		}
+		dc.FillPreserve()
+	}
+
+	color := r.s.Visuals.Cursor.RGBA
+	dc.SetRGBA255(color.ToInt())
+	dc.SetLineWidth(s.LineWidth)
 	dc.Stroke()
 }
 
-func lerp32(a, b float32, t float64) float32 { return a + float32(t)*(b-a) }
+func lerp32(a, b float32, t float64) float64 { return float64(a + float32(t)*(b-a)) }
 func lerp64(a, b, t float64) float64         { return a + t*(b-a) }
 func calculateAlpha(t1, t2, current float64) float64 {
 	if current <= t1 {
