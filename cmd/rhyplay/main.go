@@ -13,7 +13,7 @@ import (
 
 const (
 	AppName    = "rhyplay"
-	Version    = "v0.1.0"
+	Version    = "v0.0.0-dev"
 	Repository = "github.com/FrantisekSilhan/rhyplay"
 )
 

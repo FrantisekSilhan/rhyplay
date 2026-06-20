@@ -24,7 +24,7 @@ jobs:
         shell: pwsh
         run: |
           $val = "${{ github.ref_name }}"
-          go build -ldflags="-X 'main.Version=$val'" -o "rhyplay-$val.exe" ./cmd/renderer
+          go build -ldflags="-X 'main.Version=$val'" -o "rhyplay-$val.exe" ./cmd/rhyplay
 
       - name: Download FFmpeg
         shell: pwsh
