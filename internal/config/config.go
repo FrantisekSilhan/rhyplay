@@ -89,8 +89,13 @@ type Settings struct {
 			Shape Shape `json:"shape"`
 		} `json:"cursor"`
 		Background struct {
-			RGB        RGB `json:"rgb"`
-			CornersRGB RGB `json:"corners_rgb"`
+			RGB     RGB `json:"rgb"`
+			Corners struct {
+				RGBA         RGBA    `json:"rgba"`
+				RoundCorners float64 `json:"round_corners"`
+				LineWidth    float64 `json:"line_width"`
+				Length       float64 `json:"length"`
+			} `json:"corners"`
 		} `json:"background"`
 	} `json:"visuals"`
 }
@@ -132,7 +137,10 @@ func NewDefault() *Settings {
 	s.Visuals.Cursor.Shape.Weirdo.RoundedCorners = [4]bool{false, true, false, true}
 
 	s.Visuals.Background.RGB = RGB{12, 12, 12}
-	s.Visuals.Background.CornersRGB = RGB{127, 127, 127}
+	s.Visuals.Background.Corners.RGBA = RGBA{127, 127, 127, 255}
+	s.Visuals.Background.Corners.RoundCorners = 0
+	s.Visuals.Background.Corners.LineWidth = 10.0
+	s.Visuals.Background.Corners.Length = 0.5
 	return s
 }
 

@@ -170,7 +170,7 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 		shiftY := -curY * r.s.Visuals.Parallax
 
 		r.DrawBackground(dc)
-		r.DrawCorners(dc, r.OffsetX+shiftX, r.OffsetY+shiftY, r.PlayAreaSize, 100, 10)
+		r.DrawCorners(dc, r.OffsetX+shiftX, r.OffsetY+shiftY, r.PlayAreaSize)
 
 		for i := len(r.Beatmap.Notes) - 1; i >= 0; i-- {
 			note := r.Beatmap.Notes[i]
@@ -360,26 +360,64 @@ func (r *Renderer) DrawNote(dc *gg.Context, alpha float64, noteIdx int, x, y, si
 	dc.Stroke()
 }
 
-func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size, length, lineWidth float64) {
-	c := r.s.Visuals.Background.CornersRGB
-	dc.SetRGB255(c.ToInt())
-	dc.SetLineWidth(lineWidth)
+func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size float64) {
+	c := r.s.Visuals.Background.Corners
+	dc.SetRGBA255(c.RGBA.ToInt())
+	dc.SetLineWidth(c.LineWidth)
 
-	dc.MoveTo(x, y+length)
-	dc.LineTo(x, y)
-	dc.LineTo(x+length, y)
+	actualLength := (size / 2.0) * c.Length
+
+	radius := (size / 2.0) * c.RoundCorners
+	if radius > actualLength {
+		radius = actualLength
+	}
+
+	if radius > 0 {
+		dc.MoveTo(x, y+actualLength)
+		dc.LineTo(x, y+radius)
+		dc.DrawArc(x+radius, y+radius, radius, math.Pi, 1.5*math.Pi)
+		dc.LineTo(x+actualLength, y)
+	} else {
+		dc.MoveTo(x, y+actualLength)
+		dc.LineTo(x, y)
+		dc.LineTo(x+actualLength, y)
+	}
 	dc.Stroke()
-	dc.MoveTo(x+size-length, y)
-	dc.LineTo(x+size, y)
-	dc.LineTo(x+size, y+length)
+
+	if radius > 0 {
+		dc.MoveTo(x+size-actualLength, y)
+		dc.LineTo(x+size-radius, y)
+		dc.DrawArc(x+size-radius, y+radius, radius, 1.5*math.Pi, 2*math.Pi)
+		dc.LineTo(x+size, y+actualLength)
+	} else {
+		dc.MoveTo(x+size-actualLength, y)
+		dc.LineTo(x+size, y)
+		dc.LineTo(x+size, y+actualLength)
+	}
 	dc.Stroke()
-	dc.MoveTo(x, y+size-length)
-	dc.LineTo(x, y+size)
-	dc.LineTo(x+length, y+size)
+
+	if radius > 0 {
+		dc.MoveTo(x+size, y+size-actualLength)
+		dc.LineTo(x+size, y+size-radius)
+		dc.DrawArc(x+size-radius, y+size-radius, radius, 0, 0.5*math.Pi)
+		dc.LineTo(x+size-actualLength, y+size)
+	} else {
+		dc.MoveTo(x+size, y+size-actualLength)
+		dc.LineTo(x+size, y+size)
+		dc.LineTo(x+size-actualLength, y+size)
+	}
 	dc.Stroke()
-	dc.MoveTo(x+size-length, y+size)
-	dc.LineTo(x+size, y+size)
-	dc.LineTo(x+size, y+size-length)
+
+	if radius > 0 {
+		dc.MoveTo(x+actualLength, y+size)
+		dc.LineTo(x+radius, y+size)
+		dc.DrawArc(x+radius, y+size-radius, radius, 0.5*math.Pi, math.Pi)
+		dc.LineTo(x, y+size-actualLength)
+	} else {
+		dc.MoveTo(x+actualLength, y+size)
+		dc.LineTo(x, y+size)
+		dc.LineTo(x, y+size-actualLength)
+	}
 	dc.Stroke()
 }
 
