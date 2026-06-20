@@ -8,89 +8,118 @@ import (
 	"rhyplay/internal/render"
 	"rhyplay/internal/utils"
 	"strings"
+	"time"
+)
+
+const (
+	AppName    = "rhyplay"
+	Version    = "v0.1.0"
+	Repository = "github.com/FrantisekSilhan/rhyplay"
+)
+
+const (
+	ColorReset  = "\033[0m"
+	ColorRed    = "\033[31m"
+	ColorYellow = "\033[33m"
+	ColorCyan   = "\033[36m"
 )
 
 func main() {
 	configPath := "settings.json"
 	changed, err := config.Load(configPath)
 	if err != nil {
-		if strings.Contains(err.Error(), "corrupted") {
-			fmt.Printf("ERROR: the settings file '%s' is corrupted or has invalid formatting\n", configPath)
-			fmt.Println("details:", err)
-			fmt.Println("\nplease fix the file manually or delete it to reset to defaults")
-		} else {
-			fmt.Println("unexpected error loading config:", err)
-		}
+		printHeader()
+		fmt.Printf("\n %s[X] CONFIG ERROR%s\n", ColorRed, ColorReset)
+		fmt.Printf("     The settings file '%s' is corrupted or invalid.\n", configPath)
+		fmt.Printf("     Details: %v\n", err)
+		fmt.Printf("\n     Please fix it manually or delete it to reset.\n")
 		os.Exit(1)
 	}
 
 	if changed {
-		fmt.Printf("NOTICE: '%s' was missing or outdated\n", configPath)
-		fmt.Println("the file has been updated with default values for missing settings")
-		fmt.Println("please check the settings and restart the application")
+		printHeader()
+		fmt.Printf("\n %s[!] CONFIG UPDATED%s\n", ColorYellow, ColorReset)
+		fmt.Printf("     '%s' was missing or outdated.\n", configPath)
+		fmt.Printf("     It has been updated with default values.\n")
+		fmt.Printf("\n     Please check the file and restart the application.\n")
 		os.Exit(0)
 	}
 
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: rhyplay <path_to_rhr_file> <path_to_rhm_file>")
+		printHeader()
+		fmt.Println("\nUsage:")
+		fmt.Println("  rhyplay <replay.rhr> <map_file>")
+		fmt.Println("\nArguments:")
+		fmt.Println("  <replay.rhr>   The replay file")
+		fmt.Println("  <map_file>     The beatmap file (supports: .rhm, .sspm)")
 		os.Exit(1)
 	}
 
 	replayPath := os.Args[1]
-	fmt.Printf("Parsing replay: %s\n", replayPath)
+	mapPath := os.Args[2]
+
+	printHeader()
+	fmt.Print("\n [1/3] Parsing files... ")
+	start := time.Now()
 
 	replayData, err := parser.ParseReplay(replayPath)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("\nError parsing replay: %v\n", err)
 		os.Exit(1)
 	}
-
-	fmt.Printf("Successfully parsed %d frames!\n", len(replayData.Frames))
-	fmt.Println("----------------------------------------------------------------")
-	fmt.Printf("%-8s | %-8s | %-8s\n", "Progress", "X", "Y")
-	fmt.Println("----------------------------------------------------------------")
-
-	for i, f := range replayData.Frames {
-		if i >= 20 {
-			fmt.Println("...")
-			break
-		}
-		fmt.Printf("%-8d | %-8.3f | %-8.3f\n",
-			f.Progress, f.X, f.Y)
-	}
-
-	// parse the map file
-	mapPath := os.Args[2]
-	fmt.Printf("\nParsing map: %s\n", mapPath)
 
 	mapData, audioBuffer, err := parser.ParseMap(mapPath)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("\nError parsing map: %v\n", err)
 		os.Exit(1)
 	}
+	fmt.Printf("Done (%v)\n", time.Since(start).Truncate(time.Millisecond))
 
-	fmt.Printf("Successfully parsed map: %s\n", mapData.Title)
-	fmt.Printf("Notes:\n")
-	for i, note := range mapData.Notes {
-		if i >= 20 {
-			fmt.Println("...")
-			break
-		}
-		fmt.Printf("Time: %d, X: %.3f, Y: %.3f\n", note.Time, note.X, note.Y)
-	}
+	totalDuration := float64(replayData.Frames[len(replayData.Frames)-1].Progress) / 1000.0
+	fmt.Printf("       > Map:    %s\n", mapData.Title)
+	fmt.Printf("       > Length: %.2fs\n", totalDuration)
+	fmt.Printf("       > Notes:  %d\n", len(mapData.Notes))
 
-	// extract audio
+	fmt.Print(" [2/3] Extracting audio... ")
+	start = time.Now()
 	audioFile, err := utils.SaveTempFile(audioBuffer, "audio-*.mp3")
 	if err != nil {
-		fmt.Printf("Error saving audio: %v\n", err)
+		fmt.Printf("\nError saving audio: %v\n", err)
 		os.Exit(1)
 	}
 	defer audioFile.Cleanup()
+	fmt.Printf("Done (%v)\n", time.Since(start).Truncate(time.Millisecond))
 
+	fmt.Println(" [3/3] Rendering video... ")
 	renderer := render.NewRenderer(mapData, replayData)
+
+	start = time.Now()
 	err = renderer.Render("output.mp4", audioFile.Path)
 	if err != nil {
-		fmt.Printf("Error during rendering: %v\n", err)
+		fmt.Printf("\n\n [X] RENDER ERROR\n")
+		fmt.Printf("     %v\n", err)
 		os.Exit(1)
 	}
+
+	fmt.Printf("\n\n")
+	fmt.Println("-----------------------------------------------------------")
+	fmt.Printf(" Success! Render finished in %s\n", time.Since(start).Truncate(time.Second))
+	fmt.Println(" Saved to: output.mp4")
+	fmt.Println("-----------------------------------------------------------")
+}
+
+func handleConfigError(path string, err error) {
+	if strings.Contains(err.Error(), "corrupted") {
+		fmt.Printf("ERROR: Settings file '%s' is corrupted.\n", path)
+		fmt.Println("Details:", err)
+	} else {
+		fmt.Println("Unexpected error loading config:", err)
+	}
+	os.Exit(1)
+}
+
+func printHeader() {
+	fmt.Println("-----------------------------------------------------------")
+	fmt.Printf("--- %s%s%s %s | %s ---\n", ColorCyan, AppName, ColorReset, Version, Repository)
+	fmt.Println("-----------------------------------------------------------")
 }

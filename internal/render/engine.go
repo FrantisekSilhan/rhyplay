@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"io"
 	"math"
 	"os"
 	"os/exec"
 	"rhyplay/internal/config"
+	"rhyplay/internal/ffmpeg"
 	"rhyplay/internal/game"
 	"rhyplay/internal/parser"
 
@@ -55,21 +57,16 @@ func getSampleRate(path string) (int, error) {
 	return sr, nil
 }
 
-func (r *Renderer) Render(outputPath string, audioPath string) error {
-	msPerFrame := 1000.0 / float64(r.FPS)
-	if len(r.Replay.Frames) < 2 {
-		return fmt.Errorf("replay contains too few frames")
-	}
-	replayEndTime := float64(r.Replay.Frames[len(r.Replay.Frames)-1].Progress)
-	videoDuration := replayEndTime / float64(r.Replay.SpeedMultiplier)
-
-	hitSoundPath := "sounds/hit.mp3"
-
+func (r *Renderer) prepareArgs(outputPath, audioPath string, progressPort int) ([]string, string, error) {
 	args := []string{
 		"-y", "-f", "rawvideo", "-vcodec", "rawvideo", "-pix_fmt", "rgba",
 		"-s", fmt.Sprintf("%dx%d", r.Width, r.Height),
 		"-r", fmt.Sprintf("%d", r.FPS),
 		"-i", "-",
+	}
+
+	if progressPort > 0 {
+		args = append([]string{"-progress", fmt.Sprintf("tcp://127.0.0.1:%d", progressPort)}, args...)
 	}
 
 	currentInputIdx := 1
@@ -91,6 +88,7 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 		currentInputIdx++
 	}
 
+	hitSoundPath := "sounds/hit.mp3"
 	hitIdx := currentInputIdx
 	args = append(args, "-i", hitSoundPath)
 	currentInputIdx++
@@ -121,16 +119,17 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 	}
 
 	// TODO: add hitsounds in more efficient way
+	var filterPath string
 	if filterComplex != "" {
 		f, err := os.CreateTemp("", "ffmpeg-filter-*.txt")
 		if err != nil {
-			return fmt.Errorf("failed to create filter script: %w", err)
+			return nil, "", fmt.Errorf("failed to create filter script: %w", err)
 		}
-		defer os.Remove(f.Name())
 
 		if _, err := f.WriteString(filterComplex); err != nil {
-			return fmt.Errorf("failed to write filter script: %w", err)
+			return nil, "", fmt.Errorf("failed to write filter script: %w", err)
 		}
+		filterPath = f.Name()
 		f.Close()
 
 		args = append(args, "-filter_complex_script", f.Name())
@@ -144,48 +143,93 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 
 	args = append(args, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast", outputPath)
 
-	cmd := exec.Command("ffmpeg", args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	stdin, _ := cmd.StdinPipe()
+	return args, filterPath, nil
+}
 
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("ffmpeg failed to start: %w", err)
-	}
-
+func (r *Renderer) writeFrames(stdin io.WriteCloser, videoDuration float64) {
+	defer stdin.Close()
+	msPerFrame := 1000.0 / float64(r.FPS)
 	dc := gg.NewContext(r.Width, r.Height)
-
 	replayIdx := 0
+
 	for currentTime := 0.0; currentTime <= videoDuration; currentTime += msPerFrame {
 		engineTime := currentTime * float64(r.Replay.SpeedMultiplier)
 		for replayIdx < len(r.Replay.Frames)-2 && float64(r.Replay.Frames[replayIdx+1].Progress) < engineTime {
 			replayIdx++
 		}
+
 		f1, f2 := r.Replay.Frames[replayIdx], r.Replay.Frames[replayIdx+1]
 		alpha := calculateAlpha(float64(f1.Progress), float64(f2.Progress), engineTime)
-		curX := lerp32(f1.X, f2.X, alpha)
-		curY := -lerp32(f1.Y, f2.Y, alpha)
-
-		shiftX := -curX * r.s.Visuals.Parallax
-		shiftY := -curY * r.s.Visuals.Parallax
+		curX, curY := lerp32(f1.X, f2.X, alpha), -lerp32(f1.Y, f2.Y, alpha)
+		shiftX, shiftY := -curX*r.s.Visuals.Parallax, -curY*r.s.Visuals.Parallax
 
 		r.DrawBackground(dc)
 		r.DrawCorners(dc, r.OffsetX+shiftX, r.OffsetY+shiftY, r.PlayAreaSize)
 
 		for i := len(r.Beatmap.Notes) - 1; i >= 0; i-- {
-			note := r.Beatmap.Notes[i]
-			r.SetupNote(dc, note, engineTime, shiftX, shiftY)
+			r.SetupNote(dc, r.Beatmap.Notes[i], engineTime, shiftX, shiftY)
 		}
 
 		r.DrawCursor(dc, curX, curY, shiftX, shiftY)
+		stdin.Write(dc.Image().(*image.RGBA).Pix)
+	}
+}
 
-		img := dc.Image().(*image.RGBA)
-		stdin.Write(img.Pix)
+func (r *Renderer) Render(outputPath string, audioPath string) error {
+	if len(r.Replay.Frames) < 2 {
+		return fmt.Errorf("replay contains too few frames")
 	}
 
+	replayEndTime := float64(r.Replay.Frames[len(r.Replay.Frames)-1].Progress)
+	videoDuration := replayEndTime / float64(r.Replay.SpeedMultiplier)
+
+	port, progressChan, err := ffmpeg.StartProgressServer()
+	if err != nil {
+		return fmt.Errorf("failed to start progress server: %w", err)
+	}
+
+	args, filterFile, err := r.prepareArgs(outputPath, audioPath, port)
+	if err != nil {
+		return fmt.Errorf("failed to prepare ffmpeg arguments: %w", err)
+	}
+
+	if filterFile != "" {
+		defer os.Remove(filterFile)
+	}
+
+	cmd := exec.Command(ffmpeg.GetExecutablePath(), args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	stdin, err := cmd.StdinPipe()
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start ffmpeg: %w, stderr: %s", err, stderr.String())
+	}
+
+	progressDone := make(chan bool)
+	go func() {
+		for p := range progressChan {
+			if p.Done {
+				fmt.Printf("\r       > Progress: 100.00%%          ")
+				break
+			}
+			percent := (p.Percent / videoDuration) * 100.0
+			if percent > 100.0 {
+				percent = 100.0
+			}
+			fmt.Printf("\r       > Progress: %.2f%%", percent)
+		}
+		progressDone <- true
+	}()
+
+	r.writeFrames(stdin, videoDuration)
+
 	stdin.Close()
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("ffmpeg error: %v\n-- LOG --\n%s", err, stderr.String())
+	err = cmd.Wait()
+
+	<-progressDone
+	if err != nil {
+		return fmt.Errorf("ffmpeg exited with error: %w, stderr: %s", err, stderr.String())
 	}
 
 	return nil
