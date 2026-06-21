@@ -1,16 +1,18 @@
 package game
 
 const (
-	Padding = 0.2
+	BaseHeight       = 1080.0
+	BasePlayAreaSize = 644.0
+	GridSize         = 3.0
 
 	HitWindowMS = 55.0
-	GridSize    = 3.0
 	CursorSize  = 0.2625
-	HitBoxSize  = 0.07
 	NoteSize    = 0.875
 
-	BaseLineWidth = 20.0
-	ViewDistance  = 3.75
+	ViewDistance = 3.75
+
+	HitboxSizeNormal   = (250.0 / BasePlayAreaSize) * GridSize
+	HitboxSizeHardrock = (200.0 / BasePlayAreaSize) * GridSize
 
 	FadeIn     = 15
 	FadeOut    = 25

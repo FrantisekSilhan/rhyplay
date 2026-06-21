@@ -139,7 +139,7 @@ func NewDefault() *Settings {
 	s.Visuals.Background.RGB = RGB{12, 12, 12}
 	s.Visuals.Background.Corners.RGBA = RGBA{127, 127, 127, 255}
 	s.Visuals.Background.Corners.RoundCorners = 0
-	s.Visuals.Background.Corners.LineWidth = 10.0
+	s.Visuals.Background.Corners.LineWidth = 7.0
 	s.Visuals.Background.Corners.Length = 0.5
 	return s
 }

@@ -31,7 +31,7 @@ type Renderer struct {
 func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
 	s := config.Current
 	w, h := s.Video.Width, s.Video.Height
-	size := float64(h) * (1.0 - (game.Padding * 2))
+	size := (float64(h) / game.BaseHeight) * game.BasePlayAreaSize
 
 	return &Renderer{
 		s:            s,
@@ -253,7 +253,10 @@ func (r *Renderer) SetupNote(dc *gg.Context, note parser.Note, currentTime, shif
 	}
 
 	perspective := game.CalcPerspective(depth)
-	currentSize := r.PlayAreaSize * (game.NoteSize / game.GridSize) * perspective
+	currentNoteSize := r.PlayAreaSize * (game.NoteSize / game.GridSize) * perspective
+
+	hbSizeUnit := game.HitboxSizeNormal // TODO: change size based on replay mods
+	currentHitboxSize := r.PlayAreaSize * (hbSizeUnit / game.GridSize) * perspective
 
 	relX, relY := game.GameToScreen(note.X, note.Y, r.PlayAreaSize, perspective)
 
@@ -292,7 +295,8 @@ func (r *Renderer) SetupNote(dc *gg.Context, note parser.Note, currentTime, shif
 	}
 
 	if alpha > 0 {
-		r.DrawNote(dc, alpha, note.NoteIdx, drawX-currentSize/2, drawY-currentSize/2, currentSize, perspective)
+		r.DrawNote(dc, alpha, note.NoteIdx, drawX-currentNoteSize/2, drawY-currentNoteSize/2, currentNoteSize, perspective)
+		r.DrawHitbox(dc, drawX-currentHitboxSize/2, drawY-currentHitboxSize/2, currentHitboxSize) // TODO: add toggle to settings
 	}
 }
 
@@ -499,6 +503,13 @@ func (r *Renderer) DrawCursor(dc *gg.Context, x, y, shiftX, shiftY float64) {
 	color := r.s.Visuals.Cursor.RGBA
 	dc.SetRGBA255(color.ToInt())
 	dc.SetLineWidth(s.LineWidth)
+	dc.Stroke()
+}
+
+func (r *Renderer) DrawHitbox(dc *gg.Context, x, y, size float64) {
+	dc.SetRGBA255(255, 0, 0, 255)
+	dc.SetLineWidth(1.0)
+	dc.DrawRectangle(x, y, size, size)
 	dc.Stroke()
 }
 
