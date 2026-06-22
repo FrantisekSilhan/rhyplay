@@ -39,23 +39,3 @@ func GetEffectiveHitWindows(speed float32) float64 {
 func CalcPerspective(depth float64) float64 {
 	return ViewDistance / (depth + ViewDistance)
 }
-
-func GameToScreen(gx, gy, resScale, perspective float64, hr bool) (sx, sy float64) {
-	scale := NoteUnitToPx * resScale
-	if hr {
-		scale = NoteUnitToPxHR * resScale
-	}
-	sx = gx * scale * perspective
-	sy = gy * scale * perspective
-	return
-}
-
-func CursorToScreen(cx, cy, resScale float64, hr bool) (sx, sy float64) {
-	scale := CursorUnitToPx * resScale
-	if hr {
-		scale = CursorUnitToPxHR * resScale
-	}
-	sx = cx * scale
-	sy = cy * scale
-	return
-}

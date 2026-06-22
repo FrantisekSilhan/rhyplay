@@ -40,6 +40,12 @@ type Shape struct {
 	} `json:"weirdo"`
 }
 
+type Modifiers struct {
+	Ghost    bool `json:"ghost"`
+	FadeOut  bool `json:"fade_out"`
+	Pushback bool `json:"pushback"`
+}
+
 type Settings struct {
 	Video struct {
 		Width  int `json:"width"`
@@ -53,13 +59,9 @@ type Settings struct {
 	} `json:"gameplay"`
 
 	Visuals struct {
-		Modifiers struct {
-			Ghost    bool `json:"ghost"`
-			FadeOut  bool `json:"fade_out"`
-			Pushback bool `json:"pushback"`
-		} `json:"modifiers"`
-		Parallax float64 `json:"parallax"`
-		Note     struct {
+		Modifiers Modifiers `json:"modifiers"`
+		Parallax  float64   `json:"parallax"`
+		Note      struct {
 			RGB        []RGB `json:"rgb"`
 			ShowHitbox bool  `json:"show_hitbox"`
 			Fill       struct {
