@@ -34,6 +34,9 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
 	w, h := s.Video.Width, s.Video.Height
 
 	resScale := float64(h) / game.BaseHeight
+	if float64(h) > float64(w) {
+		resScale = float64(w) / game.BaseHeight
+	}
 
 	c := &game.Constants{
 		NoteUnitToPx:       game.NoteUnitToPx,
