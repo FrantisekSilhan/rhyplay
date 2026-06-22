@@ -30,9 +30,11 @@ const (
 	FadeIn     = 15
 	FadeOut    = 25
 	MinFadeOut = 0.25
+
+	MissDuration = 400.0
 )
 
-func GetEffectiveHitWindows(speed float32) float64 {
+func GetEffectiveHitWindow(speed float32) float64 {
 	return HitWindowMS * float64(speed)
 }
 

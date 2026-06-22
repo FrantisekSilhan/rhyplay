@@ -9,16 +9,18 @@ import (
 )
 
 func (r *Renderer) SetupNotes(dc *gg.Context, engineTime float64, noteWindowIdx int, shiftX, shiftY float64) {
-	for i := len(r.Beatmap.Notes) - 1; i >= 0; i-- {
-		if i < noteWindowIdx {
-			break
-		}
+	for i := len(r.RenderNotes) - 1; i >= noteWindowIdx; i-- {
 		rn := r.RenderNotes[i]
-		timeDiff := rn.TargetTime - engineTime
-		if timeDiff > r.nc.horizon || timeDiff < -500 {
-			continue
+
+		switch rn.Status {
+		case StatusPending:
+			timeDiff := rn.TargetTime - engineTime
+			r.SetupNote(dc, rn, engineTime, timeDiff, r.nc.depthStep, r.s.Gameplay.ApproachDistance, shiftX, shiftY)
+		case StatusMiss:
+			if r.s.Visuals.Miss.Enabled && engineTime < rn.ResolvedAt+game.MissDuration {
+				r.DrawMiss(dc, rn, engineTime, shiftX, shiftY, (i&1)*2-1)
+			}
 		}
-		r.SetupNote(dc, rn, engineTime, timeDiff, r.nc.depthStep, r.s.Gameplay.ApproachDistance, shiftX, shiftY)
 	}
 }
 

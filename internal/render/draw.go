@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"math"
 	"rhyplay/internal/config"
 	"rhyplay/internal/game"
@@ -120,6 +121,13 @@ func (r *Renderer) DrawNote(dc *gg.Context, alpha float64, noteIdx int, cx, cy, 
 
 func (r *Renderer) DrawUI(dc *gg.Context, shiftX, shiftY float64) {
 	r.DrawCorners(dc, shiftX, shiftY)
+
+	processed := r.HitCount + r.MissCount
+	text := fmt.Sprintf("%d / %d", r.HitCount, processed)
+
+	dc.SetRGB(1, 1, 1)
+	dc.DrawStringAnchored(text, float64(r.Width)-30, 30, 1, 0.5)
+	dc.Fill()
 }
 
 func (r *Renderer) DrawCorners(dc *gg.Context, shiftX, shiftY float64) {
@@ -241,11 +249,11 @@ func (r *Renderer) DrawBackground(dc *gg.Context) {
 }
 
 func (r *Renderer) DrawCollision(dc *gg.Context, rn RenderNote, curX, curY float64, shiftX, shiftY float64) {
-	noteDrawX := r.OffsetX + shiftX + rn.BaseX
-	noteDrawY := r.OffsetY + shiftY + rn.BaseY
+	noteDrawX := shiftX + rn.BaseX
+	noteDrawY := shiftY + rn.BaseY
 
-	cursorDrawX := r.OffsetX + shiftX + curX
-	cursorDrawY := r.OffsetY + shiftY + curY
+	cursorDrawX := shiftX + curX
+	cursorDrawY := shiftY + curY
 
 	hitboxSize := r.c.HitboxSize * r.ResScale
 
@@ -261,4 +269,60 @@ func (r *Renderer) DrawCollision(dc *gg.Context, rn RenderNote, curX, curY float
 	dc.SetRGBA255(255, 255, 0, 100)
 	dc.DrawLine(cursorDrawX, cursorDrawY, noteDrawX, noteDrawY)
 	dc.Stroke()
+}
+
+func (r *Renderer) DrawMiss(dc *gg.Context, rn RenderNote, engineTime, shiftX, shiftY float64, dir int) {
+	progress := (engineTime - rn.ResolvedAt) / game.MissDuration
+	if progress < 0 {
+		progress = 0
+	}
+	if progress > 1 {
+		return
+	}
+
+	angle := float64(dir) * 20.0 * (math.Pi / 180.0)
+	lineWidth := r.s.Visuals.Miss.LineWidth * r.ResScale
+	halfSize := 2.0 * lineWidth
+
+	var scale, alpha, rotation float64
+
+	if progress <= 0.25 {
+		p := progress / 0.25
+		scale = p
+		alpha = p
+	} else if progress <= 0.50 {
+		scale = 1.0
+		alpha = 1.0
+	} else {
+		p := (progress - 0.50) / 0.50
+		scale = 1.0 - p
+		alpha = 1.0 - p
+	}
+
+	if progress < 0.20 {
+		rotation = angle
+	} else if progress > 0.55 {
+		rotation = 0
+	} else {
+		rp := (progress - 0.20) / (0.55 - 0.20)
+		smoothP := rp * rp * (3 - 2*rp)
+		rotation = angle * (1.0 - smoothP)
+	}
+
+	drawX := shiftX + rn.BaseX
+	drawY := shiftY + rn.BaseY
+
+	dc.Push()
+	dc.Translate(drawX, drawY)
+	dc.Rotate(rotation)
+	dc.Scale(scale, scale)
+
+	dc.SetRGBA255(r.s.Visuals.Miss.RGB.ToIntAlpha(alpha))
+	dc.SetLineWidth(lineWidth)
+	dc.SetLineCap(gg.LineCapRound)
+
+	dc.DrawLine(-halfSize, -halfSize, halfSize, halfSize)
+	dc.DrawLine(halfSize, -halfSize, -halfSize, halfSize)
+	dc.Stroke()
+	dc.Pop()
 }

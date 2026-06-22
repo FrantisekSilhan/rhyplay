@@ -5,6 +5,8 @@ type RenderNote struct {
 	BaseX      float64
 	BaseY      float64
 	TargetTime float64
+	Status     int
+	ResolvedAt float64
 }
 
 type RenderFrame struct {
@@ -37,6 +39,7 @@ func (r *Renderer) prepareData() {
 			BaseX:      sx,
 			BaseY:      sy,
 			TargetTime: float64(n.Time),
+			Status:     StatusPending,
 		}
 	}
 

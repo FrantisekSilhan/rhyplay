@@ -40,6 +40,10 @@ type Renderer struct {
 
 	RenderNotes  []RenderNote
 	RenderFrames []RenderFrame
+
+	HitCount          int
+	MissCount         int
+	LastProcessedTime float64
 }
 
 func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
@@ -94,6 +98,13 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
 		ParallaxFactor: s.Visuals.Parallax / cursorScale,
 		OffsetX:        float64(w) / 2.0,
 		OffsetY:        float64(h) / 2.0,
+
+		RenderNotes:  make([]RenderNote, len(b.Notes)),
+		RenderFrames: make([]RenderFrame, len(r.Frames)),
+
+		HitCount:          0,
+		MissCount:         0,
+		LastProcessedTime: -1,
 	}
 }
 
@@ -106,21 +117,51 @@ func (r *Renderer) writeFrames(stdin io.WriteCloser, videoDuration float64) {
 
 	for currentTime := 0.0; currentTime <= videoDuration; currentTime += msPerFrame {
 		engineTime := currentTime * float64(r.Replay.ModState.SpeedMultiplier)
-		for replayIdx < len(r.RenderFrames)-2 && float64(r.RenderFrames[replayIdx+1].Progress) < engineTime {
+		var replayWindow []RenderFrame
+		for replayIdx < len(r.RenderFrames) {
+			f := r.RenderFrames[replayIdx]
+
+			if f.Progress > engineTime {
+				break
+			}
+
+			if f.Progress > r.LastProcessedTime {
+				replayWindow = append(replayWindow, f)
+			}
 			replayIdx++
 		}
-		for noteWindowIdx < len(r.RenderNotes) && float64(r.RenderNotes[noteWindowIdx].TargetTime) < engineTime-100 {
-			noteWindowIdx++
+
+		idx := replayIdx
+		if idx >= len(r.RenderFrames) {
+			idx = len(r.RenderFrames) - 1
+		}
+		if idx < 1 {
+			idx = 1
 		}
 
-		f1, f2 := r.RenderFrames[replayIdx], r.RenderFrames[replayIdx+1]
+		f1, f2 := r.RenderFrames[idx-1], r.RenderFrames[idx]
 		alpha := calculateAlpha(float64(f1.Progress), float64(f2.Progress), engineTime)
-
 		curX, curY := lerp64(f1.X, f2.X, alpha), lerp64(f1.Y, f2.Y, alpha)
+
+		for noteWindowIdx < len(r.RenderNotes) && float64(r.RenderNotes[noteWindowIdx].TargetTime) < engineTime-(game.MissDuration+100) {
+			noteWindowIdx++
+		}
 
 		shiftX, shiftY := r.OffsetX-curX*r.ParallaxFactor, r.OffsetY-curY*r.ParallaxFactor
 
 		r.DrawBackground(dc)
+
+		if r.s.Debug.ShowCollision {
+			for _, n := range r.RenderNotes {
+				if n.Status == StatusPending && n.TargetTime < engineTime+500 {
+					r.DrawCollision(dc, n, curX, curY, shiftX, shiftY)
+					break
+				}
+			}
+		}
+
+		r.updateScoreLogic(dc, engineTime, replayWindow, r.OffsetX-curX*r.ParallaxFactor, r.OffsetY-curY*r.ParallaxFactor)
+		r.LastProcessedTime = engineTime
 
 		r.SetupNotes(dc, engineTime, noteWindowIdx, shiftX, shiftY)
 		r.DrawCursor(dc, curX, curY, shiftX, shiftY)

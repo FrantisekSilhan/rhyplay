@@ -91,6 +91,11 @@ type Settings struct {
 			} `json:"fill"`
 			Shape Shape `json:"shape"`
 		} `json:"cursor"`
+		Miss struct {
+			Enabled   bool    `json:"enabled"`
+			RGB       RGB     `json:"rgb"`
+			LineWidth float64 `json:"line_width"`
+		} `json:"miss"`
 		Background struct {
 			RGB     RGB `json:"rgb"`
 			Corners struct {
@@ -101,6 +106,10 @@ type Settings struct {
 			} `json:"corners"`
 		} `json:"background"`
 	} `json:"visuals"`
+
+	Debug struct {
+		ShowCollision bool `json:"show_collision"`
+	} `json:"debug"`
 }
 
 var Current *Settings
@@ -143,11 +152,17 @@ func NewDefault() *Settings {
 	s.Visuals.Cursor.Shape.Ngon.Angle = 0.0
 	s.Visuals.Cursor.Shape.Weirdo.RoundedCorners = [4]bool{false, true, false, true}
 
+	s.Visuals.Miss.Enabled = true
+	s.Visuals.Miss.RGB = RGB{255, 67, 67}
+	s.Visuals.Miss.LineWidth = 10.0
+
 	s.Visuals.Background.RGB = RGB{12, 12, 12}
 	s.Visuals.Background.Corners.RGBA = RGBA{127, 127, 127, 255}
 	s.Visuals.Background.Corners.RoundCorners = 0
 	s.Visuals.Background.Corners.LineWidth = 5.0
 	s.Visuals.Background.Corners.Length = 0.5
+
+	s.Debug.ShowCollision = false
 	return s
 }
 
