@@ -1,18 +1,18 @@
 package game
 
 const (
-	BaseHeight       = 1080.0
-	BasePlayAreaSize = 644.0
-	GridSize         = 3.0
+	BaseHeight     = 1080.0
+	NoteUnitToPx   = 440.0 / 2.00
+	CursorUnitToPx = 606.0 / 2.74
+	HitboxSize     = 250.0
+
+	NoteDrawSize       = 182.0
+	CursorDrawSize     = 56.0
+	BackgroundDrawSize = 656.0
 
 	HitWindowMS = 55.0
-	CursorSize  = 0.2625
-	NoteSize    = 0.875
 
 	ViewDistance = 3.75
-
-	HitboxSizeNormal   = (250.0 / BasePlayAreaSize) * GridSize
-	HitboxSizeHardrock = (200.0 / BasePlayAreaSize) * GridSize
 
 	FadeIn     = 15
 	FadeOut    = 25
@@ -27,15 +27,15 @@ func CalcPerspective(depth float64) float64 {
 	return ViewDistance / (depth + ViewDistance)
 }
 
-func GameToScreen(gx, gy, playAreaSize, perspective float64) (sx, sy float64) {
-	scale := playAreaSize / GridSize
+func GameToScreen(gx, gy, resScale, perspective float64) (sx, sy float64) {
+	scale := NoteUnitToPx * resScale
 	sx = gx * scale * perspective
 	sy = gy * scale * perspective
 	return
 }
 
-func CursorToScreen(cx, cy, playAreaSize float64) (sx, sy float64) {
-	scale := playAreaSize / GridSize
+func CursorToScreen(cx, cy, resScale float64) (sx, sy float64) {
+	scale := CursorUnitToPx * resScale
 	sx = cx * scale
 	sy = cy * scale
 	return

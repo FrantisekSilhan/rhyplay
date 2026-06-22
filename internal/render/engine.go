@@ -24,25 +24,26 @@ type Renderer struct {
 	Width, Height int
 	FPS           int
 
-	PlayAreaSize     float64
+	ResScale         float64
 	OffsetX, OffsetY float64
 }
 
 func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
 	s := config.Current
 	w, h := s.Video.Width, s.Video.Height
-	size := (float64(h) / game.BaseHeight) * game.BasePlayAreaSize
+
+	resScale := float64(h) / game.BaseHeight
 
 	return &Renderer{
-		s:            s,
-		Beatmap:      b,
-		Replay:       r,
-		Width:        w,
-		Height:       h,
-		FPS:          s.Video.FPS,
-		PlayAreaSize: size,
-		OffsetX:      (float64(w) - size) / 2.0,
-		OffsetY:      (float64(h) - size) / 2.0,
+		s:        s,
+		Beatmap:  b,
+		Replay:   r,
+		Width:    w,
+		Height:   h,
+		FPS:      s.Video.FPS,
+		ResScale: resScale,
+		OffsetX:  float64(w) / 2.0,
+		OffsetY:  float64(h) / 2.0,
 	}
 }
 
@@ -164,7 +165,7 @@ func (r *Renderer) writeFrames(stdin io.WriteCloser, videoDuration float64) {
 		shiftX, shiftY := -curX*r.s.Visuals.Parallax, -curY*r.s.Visuals.Parallax
 
 		r.DrawBackground(dc)
-		r.DrawCorners(dc, r.OffsetX+shiftX, r.OffsetY+shiftY, r.PlayAreaSize)
+		r.DrawUI(dc, r.OffsetX+shiftX, r.OffsetY+shiftY)
 
 		for i := len(r.Beatmap.Notes) - 1; i >= 0; i-- {
 			r.SetupNote(dc, r.Beatmap.Notes[i], engineTime, shiftX, shiftY)
@@ -242,26 +243,25 @@ func (r *Renderer) DrawBackground(dc *gg.Context) {
 }
 
 func (r *Renderer) SetupNote(dc *gg.Context, note parser.Note, currentTime, shiftX, shiftY float64) {
-	ad := r.s.Gameplay.ApproachDistance
-	ar := r.s.Gameplay.ApproachRate
+	v := r.s.Visuals
+	g := r.s.Gameplay
+	ad := g.ApproachDistance
+	ar := g.ApproachRate
 	at := ad / ar
 
 	depth := (float64(note.Time) - currentTime) / (1000 * at) * ad / float64(r.Replay.SpeedMultiplier)
-
 	if depth > ad || depth < 0 {
 		return
 	}
 
 	perspective := game.CalcPerspective(depth)
-	currentNoteSize := r.PlayAreaSize * (game.NoteSize / game.GridSize) * perspective
 
-	hbSizeUnit := game.HitboxSizeNormal // TODO: change size based on replay mods
-	currentHitboxSize := r.PlayAreaSize * (hbSizeUnit / game.GridSize) * perspective
+	relX, relY := game.GameToScreen(note.X, note.Y, r.ResScale, perspective)
 
-	relX, relY := game.GameToScreen(note.X, note.Y, r.PlayAreaSize, perspective)
+	drawX, drawY := r.OffsetX+shiftX+relX, r.OffsetY+shiftY+relY
 
-	centerX, centerY := (float64(r.Width)/2.0)+shiftX, (float64(r.Height)/2.0)+shiftY
-	drawX, drawY := centerX+relX, centerY+relY
+	currentNoteSize := (game.NoteDrawSize - v.Note.Shape.LineWidth) * r.ResScale * perspective
+	currentHitboxSize := game.HitboxSize * r.ResScale * perspective
 
 	fadeIn := game.FadeIn / 100.0
 	progress := 1.0 - (depth / ad)
@@ -270,7 +270,7 @@ func (r *Renderer) SetupNote(dc *gg.Context, note parser.Note, currentTime, shif
 		alpha = progress / fadeIn
 	}
 
-	if r.s.Visuals.Modifiers.Ghost {
+	if v.Modifiers.Ghost {
 		startFade := 0.25
 		endFade := 0.9
 		if progress > startFade {
@@ -282,7 +282,7 @@ func (r *Renderer) SetupNote(dc *gg.Context, note parser.Note, currentTime, shif
 
 			alpha -= ratio
 		}
-	} else if r.s.Visuals.Modifiers.FadeOut {
+	} else if v.Modifiers.FadeOut {
 		fadeOut := game.FadeOut / 100.0
 		alpha -= 1 - math.Min(1, (1-progress)/fadeOut)
 		if alpha < game.MinFadeOut {
@@ -290,13 +290,15 @@ func (r *Renderer) SetupNote(dc *gg.Context, note parser.Note, currentTime, shif
 		}
 	}
 
-	if !r.s.Visuals.Modifiers.Pushback && float64(note.Time)-currentTime <= 0 {
+	if !v.Modifiers.Pushback && float64(note.Time)-currentTime <= 0 {
 		alpha = 0
 	}
 
 	if alpha > 0 {
-		r.DrawNote(dc, alpha, note.NoteIdx, drawX-currentNoteSize/2, drawY-currentNoteSize/2, currentNoteSize, perspective)
-		r.DrawHitbox(dc, drawX-currentHitboxSize/2, drawY-currentHitboxSize/2, currentHitboxSize) // TODO: add toggle to settings
+		r.DrawNote(dc, alpha, note.NoteIdx, drawX, drawY, currentNoteSize, perspective)
+		if v.Note.ShowHitbox {
+			r.DrawHitbox(dc, drawX-currentHitboxSize/2, drawY-currentHitboxSize/2, currentHitboxSize)
+		}
 	}
 }
 
@@ -381,7 +383,9 @@ func drawCustomRounded(dc *gg.Context, x, y, s, r float64, tl, tr, br, bl bool) 
 	dc.ClosePath()
 }
 
-func (r *Renderer) DrawNote(dc *gg.Context, alpha float64, noteIdx int, x, y, size, perspective float64) {
+func (r *Renderer) DrawNote(dc *gg.Context, alpha float64, noteIdx int, cx, cy, size, perspective float64) {
+	x, y := cx-size/2, cy-size/2
+
 	s := r.s.Visuals.Note.Shape
 	f := r.s.Visuals.Note.Fill
 
@@ -404,18 +408,28 @@ func (r *Renderer) DrawNote(dc *gg.Context, alpha float64, noteIdx int, x, y, si
 
 	color := r.s.Visuals.Note.RGB[noteIdx%len(r.s.Visuals.Note.RGB)]
 	dc.SetRGBA255(color.ToIntAlpha(alpha))
-	dc.SetLineWidth(s.LineWidth * perspective)
+	dc.SetLineWidth(s.LineWidth * r.ResScale * perspective)
 	dc.Stroke()
 }
 
-func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size float64) {
+func (r *Renderer) DrawUI(dc *gg.Context, shiftX, shiftY float64) {
+	r.DrawCorners(dc, shiftX, shiftY)
+}
+
+func (r *Renderer) DrawCorners(dc *gg.Context, shiftX, shiftY float64) {
 	c := r.s.Visuals.Background.Corners
+
+	pathSize := game.BackgroundDrawSize * r.ResScale
+	lineWidth := r.s.Visuals.Background.Corners.LineWidth * r.ResScale
+
+	x, y := shiftX-pathSize/2, shiftY-pathSize/2
+
 	dc.SetRGBA255(c.RGBA.ToInt())
-	dc.SetLineWidth(c.LineWidth)
+	dc.SetLineWidth(lineWidth)
 
-	actualLength := (size / 2.0) * c.Length
+	actualLength := (pathSize / 2.0) * c.Length
 
-	radius := (size / 2.0) * c.RoundCorners
+	radius := (pathSize / 2.0) * c.RoundCorners
 	if radius > actualLength {
 		radius = actualLength
 	}
@@ -433,60 +447,63 @@ func (r *Renderer) DrawCorners(dc *gg.Context, x, y, size float64) {
 	dc.Stroke()
 
 	if radius > 0 {
-		dc.MoveTo(x+size-actualLength, y)
-		dc.LineTo(x+size-radius, y)
-		dc.DrawArc(x+size-radius, y+radius, radius, 1.5*math.Pi, 2*math.Pi)
-		dc.LineTo(x+size, y+actualLength)
+		dc.MoveTo(x+pathSize-actualLength, y)
+		dc.LineTo(x+pathSize-radius, y)
+		dc.DrawArc(x+pathSize-radius, y+radius, radius, 1.5*math.Pi, 2*math.Pi)
+		dc.LineTo(x+pathSize, y+actualLength)
 	} else {
-		dc.MoveTo(x+size-actualLength, y)
-		dc.LineTo(x+size, y)
-		dc.LineTo(x+size, y+actualLength)
+		dc.MoveTo(x+pathSize-actualLength, y)
+		dc.LineTo(x+pathSize, y)
+		dc.LineTo(x+pathSize, y+actualLength)
 	}
 	dc.Stroke()
 
 	if radius > 0 {
-		dc.MoveTo(x+size, y+size-actualLength)
-		dc.LineTo(x+size, y+size-radius)
-		dc.DrawArc(x+size-radius, y+size-radius, radius, 0, 0.5*math.Pi)
-		dc.LineTo(x+size-actualLength, y+size)
+		dc.MoveTo(x+pathSize, y+pathSize-actualLength)
+		dc.LineTo(x+pathSize, y+pathSize-radius)
+		dc.DrawArc(x+pathSize-radius, y+pathSize-radius, radius, 0, 0.5*math.Pi)
+		dc.LineTo(x+pathSize-actualLength, y+pathSize)
 	} else {
-		dc.MoveTo(x+size, y+size-actualLength)
-		dc.LineTo(x+size, y+size)
-		dc.LineTo(x+size-actualLength, y+size)
+		dc.MoveTo(x+pathSize, y+pathSize-actualLength)
+		dc.LineTo(x+pathSize, y+pathSize)
+		dc.LineTo(x+pathSize-actualLength, y+pathSize)
 	}
 	dc.Stroke()
 
 	if radius > 0 {
-		dc.MoveTo(x+actualLength, y+size)
-		dc.LineTo(x+radius, y+size)
-		dc.DrawArc(x+radius, y+size-radius, radius, 0.5*math.Pi, math.Pi)
-		dc.LineTo(x, y+size-actualLength)
+		dc.MoveTo(x+actualLength, y+pathSize)
+		dc.LineTo(x+radius, y+pathSize)
+		dc.DrawArc(x+radius, y+pathSize-radius, radius, 0.5*math.Pi, math.Pi)
+		dc.LineTo(x, y+pathSize-actualLength)
 	} else {
-		dc.MoveTo(x+actualLength, y+size)
-		dc.LineTo(x, y+size)
-		dc.LineTo(x, y+size-actualLength)
+		dc.MoveTo(x+actualLength, y+pathSize)
+		dc.LineTo(x, y+pathSize)
+		dc.LineTo(x, y+pathSize-actualLength)
 	}
 	dc.Stroke()
 }
 
 func (r *Renderer) DrawCursor(dc *gg.Context, x, y, shiftX, shiftY float64) {
-	size := r.PlayAreaSize * ((game.CursorSize * config.Current.Visuals.Cursor.Size) / game.GridSize)
+	userScale := r.s.Visuals.Cursor.Size
 
-	relX, relY := game.CursorToScreen(float64(x), float64(y), r.PlayAreaSize)
+	visualSize := game.CursorDrawSize * r.ResScale * userScale
+	lineWidth := r.s.Visuals.Cursor.Shape.LineWidth * r.ResScale * userScale
 
-	centerX, centerY := (float64(r.Width)/2.0)+shiftX, (float64(r.Height)/2.0)+shiftY
-	screenX, screenY := centerX+relX, centerY+relY
+	relX, relY := game.CursorToScreen(float64(x), float64(y), r.ResScale)
+
+	screenX, screenY := r.OffsetX+shiftX+relX, r.OffsetY+shiftY+relY
 
 	s := r.s.Visuals.Cursor.Shape
 	f := r.s.Visuals.Cursor.Fill
 
-	drawX := screenX - size/2
-	drawY := screenY - size/2
+	pathSize := visualSize - lineWidth
+	drawX := screenX - pathSize/2
+	drawY := screenY - pathSize/2
 
 	if drawer, ok := noteShapes[s.NoteShape]; ok {
-		drawer(s, dc, drawX, drawY, size)
+		drawer(s, dc, drawX, drawY, pathSize)
 	} else {
-		dc.DrawCircle(screenX, screenY, size/2)
+		dc.DrawCircle(screenX, screenY, pathSize/2)
 	}
 
 	if f.Enabled {
@@ -502,7 +519,7 @@ func (r *Renderer) DrawCursor(dc *gg.Context, x, y, shiftX, shiftY float64) {
 
 	color := r.s.Visuals.Cursor.RGBA
 	dc.SetRGBA255(color.ToInt())
-	dc.SetLineWidth(s.LineWidth)
+	dc.SetLineWidth(lineWidth)
 	dc.Stroke()
 }
 

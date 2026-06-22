@@ -60,8 +60,9 @@ type Settings struct {
 		} `json:"modifiers"`
 		Parallax float64 `json:"parallax"`
 		Note     struct {
-			RGB  []RGB `json:"rgb"`
-			Fill struct {
+			RGB        []RGB `json:"rgb"`
+			ShowHitbox bool  `json:"show_hitbox"`
+			Fill       struct {
 				Enabled bool   `json:"enabled"`
 				Mode    string `json:"mode"` // "solid" or "custom"
 				Solid   struct {
@@ -106,31 +107,35 @@ func NewDefault() *Settings {
 	s := &Settings{}
 	s.Video.Width, s.Video.Height, s.Video.FPS = 1920, 1080, 60
 	s.Gameplay.ApproachDistance, s.Gameplay.ApproachRate = 40.0, 40.0
+
 	s.Visuals.Modifiers.Ghost = false
 	s.Visuals.Modifiers.FadeOut = false
 	s.Visuals.Modifiers.Pushback = false
+
 	s.Visuals.Parallax = 5.0
+
 	s.Visuals.Note.RGB = []RGB{{229, 229, 229}}
+	s.Visuals.Note.ShowHitbox = false
 	s.Visuals.Note.Fill.Enabled = false
 	s.Visuals.Note.Fill.Mode = "solid"
 	s.Visuals.Note.Fill.Solid.Alpha = 64
 	s.Visuals.Note.Fill.Custom.RGBA = []RGBA{{229, 229, 229, 64}}
 	s.Visuals.Note.Shape.RoundCorners = 0.25
-	s.Visuals.Note.Shape.NoteShape = "square"
 	s.Visuals.Note.Shape.LineWidth = 20.0
+	s.Visuals.Note.Shape.NoteShape = "square"
 	s.Visuals.Note.Shape.Ngon.Sides = 6
 	s.Visuals.Note.Shape.Ngon.Angle = 0.0
 	s.Visuals.Note.Shape.Weirdo.RoundedCorners = [4]bool{false, true, false, true}
+
 	s.Visuals.Cursor.Size = 1.0
 	s.Visuals.Cursor.RGBA = RGBA{255, 255, 255, 255}
-
 	s.Visuals.Cursor.Fill.Enabled = true
 	s.Visuals.Cursor.Fill.Mode = "solid"
 	s.Visuals.Cursor.Fill.Solid.Alpha = 64
 	s.Visuals.Cursor.Fill.Custom.RGBA = RGBA{255, 255, 255, 64}
 
-	s.Visuals.Cursor.Shape.LineWidth = 8.0
 	s.Visuals.Cursor.Shape.RoundCorners = 0.25
+	s.Visuals.Cursor.Shape.LineWidth = 8.0
 	s.Visuals.Cursor.Shape.NoteShape = "circle"
 	s.Visuals.Cursor.Shape.Ngon.Sides = 6
 	s.Visuals.Cursor.Shape.Ngon.Angle = 0.0
@@ -139,7 +144,7 @@ func NewDefault() *Settings {
 	s.Visuals.Background.RGB = RGB{12, 12, 12}
 	s.Visuals.Background.Corners.RGBA = RGBA{127, 127, 127, 255}
 	s.Visuals.Background.Corners.RoundCorners = 0
-	s.Visuals.Background.Corners.LineWidth = 7.0
+	s.Visuals.Background.Corners.LineWidth = 5.0
 	s.Visuals.Background.Corners.Length = 0.5
 	return s
 }
