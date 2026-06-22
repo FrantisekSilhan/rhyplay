@@ -18,6 +18,7 @@ import (
 
 type Renderer struct {
 	s       *config.Settings
+	c       *game.Constants
 	Beatmap *parser.MapData
 	Replay  *parser.ReplayData
 
@@ -34,8 +35,23 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
 
 	resScale := float64(h) / game.BaseHeight
 
+	c := &game.Constants{
+		NoteUnitToPx:       game.NoteUnitToPx,
+		CursorUnitToPx:     game.CursorUnitToPx,
+		HitboxSize:         game.HitboxSize,
+		BackgroundDrawSize: game.BackgroundDrawSize,
+	}
+
+	if r.ModState.HardrockEnabled {
+		c.NoteUnitToPx = game.NoteUnitToPxHR
+		c.CursorUnitToPx = game.CursorUnitToPxHR
+		c.HitboxSize = game.HitboxSizeHR
+		c.BackgroundDrawSize = game.BackgroundDrawSizeHR
+	}
+
 	return &Renderer{
 		s:        s,
+		c:        c,
 		Beatmap:  b,
 		Replay:   r,
 		Width:    w,
@@ -84,7 +100,7 @@ func (r *Renderer) prepareArgs(outputPath, audioPath string, progressPort int) (
 			sampleRate = 44100
 		}
 
-		filterComplex += fmt.Sprintf("[%d:a]asetrate=%d*%.6f,aresample=44100[bg];", musicIdx, sampleRate, r.Replay.SpeedMultiplier)
+		filterComplex += fmt.Sprintf("[%d:a]asetrate=%d*%.6f,aresample=44100[bg];", musicIdx, sampleRate, r.Replay.ModState.SpeedMultiplier)
 		audioMapLabel = "[bg]"
 		currentInputIdx++
 	}
@@ -97,7 +113,7 @@ func (r *Renderer) prepareArgs(outputPath, audioPath string, progressPort int) (
 	var hitLabels []string
 	for i, frame := range r.Replay.Frames {
 		if frame.Hit {
-			timestamp := (float64(frame.Progress) / 1000.0) / float64(r.Replay.SpeedMultiplier)
+			timestamp := (float64(frame.Progress) / 1000.0) / float64(r.Replay.ModState.SpeedMultiplier)
 			label := fmt.Sprintf("h%d", i)
 			filterComplex += fmt.Sprintf("[%d:a]adelay=%.0f|%.0f[%s];", hitIdx, timestamp*1000, timestamp*1000, label)
 			hitLabels = append(hitLabels, label)
@@ -154,7 +170,7 @@ func (r *Renderer) writeFrames(stdin io.WriteCloser, videoDuration float64) {
 	replayIdx := 0
 
 	for currentTime := 0.0; currentTime <= videoDuration; currentTime += msPerFrame {
-		engineTime := currentTime * float64(r.Replay.SpeedMultiplier)
+		engineTime := currentTime * float64(r.Replay.ModState.SpeedMultiplier)
 		for replayIdx < len(r.Replay.Frames)-2 && float64(r.Replay.Frames[replayIdx+1].Progress) < engineTime {
 			replayIdx++
 		}
@@ -182,7 +198,7 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 	}
 
 	replayEndTime := float64(r.Replay.Frames[len(r.Replay.Frames)-1].Progress)
-	videoDuration := replayEndTime / float64(r.Replay.SpeedMultiplier)
+	videoDuration := replayEndTime / float64(r.Replay.ModState.SpeedMultiplier)
 
 	port, progressChan, err := ffmpeg.StartProgressServer()
 	if err != nil {
@@ -249,19 +265,19 @@ func (r *Renderer) SetupNote(dc *gg.Context, note parser.Note, currentTime, shif
 	ar := g.ApproachRate
 	at := ad / ar
 
-	depth := (float64(note.Time) - currentTime) / (1000 * at) * ad / float64(r.Replay.SpeedMultiplier)
+	depth := (float64(note.Time) - currentTime) / (1000 * at) * ad / float64(r.Replay.ModState.SpeedMultiplier)
 	if depth > ad || depth < 0 {
 		return
 	}
 
 	perspective := game.CalcPerspective(depth)
 
-	relX, relY := game.GameToScreen(note.X, note.Y, r.ResScale, perspective)
+	relX, relY := game.GameToScreen(note.X, note.Y, r.ResScale, perspective, r.Replay.ModState.HardrockEnabled)
 
 	drawX, drawY := r.OffsetX+shiftX+relX, r.OffsetY+shiftY+relY
 
 	currentNoteSize := (game.NoteDrawSize - v.Note.Shape.LineWidth) * r.ResScale * perspective
-	currentHitboxSize := game.HitboxSize * r.ResScale * perspective
+	currentHitboxSize := r.c.HitboxSize * r.ResScale * perspective
 
 	fadeIn := game.FadeIn / 100.0
 	progress := 1.0 - (depth / ad)
@@ -419,7 +435,7 @@ func (r *Renderer) DrawUI(dc *gg.Context, shiftX, shiftY float64) {
 func (r *Renderer) DrawCorners(dc *gg.Context, shiftX, shiftY float64) {
 	c := r.s.Visuals.Background.Corners
 
-	pathSize := game.BackgroundDrawSize * r.ResScale
+	pathSize := r.c.BackgroundDrawSize * r.ResScale
 	lineWidth := r.s.Visuals.Background.Corners.LineWidth * r.ResScale
 
 	x, y := shiftX-pathSize/2, shiftY-pathSize/2
@@ -489,7 +505,7 @@ func (r *Renderer) DrawCursor(dc *gg.Context, x, y, shiftX, shiftY float64) {
 	visualSize := game.CursorDrawSize * r.ResScale * userScale
 	lineWidth := r.s.Visuals.Cursor.Shape.LineWidth * r.ResScale * userScale
 
-	relX, relY := game.CursorToScreen(float64(x), float64(y), r.ResScale)
+	relX, relY := game.CursorToScreen(float64(x), float64(y), r.ResScale, r.Replay.ModState.HardrockEnabled)
 
 	screenX, screenY := r.OffsetX+shiftX+relX, r.OffsetY+shiftY+relY
 

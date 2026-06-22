@@ -19,8 +19,13 @@ type ReplayFrame struct {
 }
 
 type ReplayData struct {
+	ModState ModState
+	Frames   []ReplayFrame
+}
+
+type ModState struct {
 	SpeedMultiplier float32
-	Frames          []ReplayFrame
+	HardrockEnabled bool
 }
 
 var hashMarkerRegex = regexp.MustCompile(`@[0-9a-fA-F]{64}`)
@@ -65,24 +70,43 @@ func ParseReplay(path string) (*ReplayData, error) {
 	}
 
 	return &ReplayData{
-		SpeedMultiplier: GetSpeedMultiplier(data),
-		Frames:          frames,
+		ModState: GetMods(data),
+		Frames:   frames,
 	}, nil
 }
 
-func GetSpeedMultiplier(data []byte) float32 {
+func GetMods(data []byte) ModState {
+	state := ModState{
+		SpeedMultiplier: 1.0,
+		HardrockEnabled: false,
+	}
 	anchor := []byte("online_profile")
 	index := bytes.Index(data, anchor)
 	if index == -1 {
-		return 1.0
+		return state
 	}
 
-	floatOffset := index + 19
-
-	if floatOffset+4 > len(data) {
-		return 1.0
+	searchStart := index + len(anchor)
+	bracketIndex := bytes.IndexByte(data[searchStart:], ']')
+	if bracketIndex == -1 {
+		return state
 	}
 
-	bits := binary.LittleEndian.Uint32(data[floatOffset : floatOffset+4])
-	return math.Float32frombits(bits)
+	absBracketIndex := searchStart + bracketIndex
+
+	modRange := data[index:absBracketIndex]
+	if bytes.Contains(modRange, []byte("mod_hardrock")) {
+		state.HardrockEnabled = true
+	}
+
+	speedOffset := absBracketIndex + 2
+
+	if speedOffset+4 > len(data) {
+		return state
+	}
+
+	bits := binary.LittleEndian.Uint32(data[speedOffset : speedOffset+4])
+	state.SpeedMultiplier = math.Float32frombits(bits)
+
+	return state
 }
