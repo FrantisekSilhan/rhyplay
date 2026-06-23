@@ -96,15 +96,25 @@ type Settings struct {
 			RGB       RGB     `json:"rgb"`
 			LineWidth float64 `json:"line_width"`
 		} `json:"miss"`
-		Background struct {
-			RGB     RGB `json:"rgb"`
-			Corners struct {
+		Interface struct {
+			BackgroundRGB RGB `json:"background_rgb"`
+			Corners       struct {
 				RGBA         RGBA    `json:"rgba"`
 				RoundCorners float64 `json:"round_corners"`
 				LineWidth    float64 `json:"line_width"`
 				Length       float64 `json:"length"`
 			} `json:"corners"`
-		} `json:"background"`
+			LeftPanel struct {
+				ShowCombo    bool `json:"show_combo"`
+				ShowGrade    bool `json:"show_grade"`
+				ShowAccuracy bool `json:"show_accuracy"`
+			} `json:"left_panel"`
+			RightPanel struct {
+				ShowScore  bool `json:"show_score"`
+				ShowMisses bool `json:"show_misses"`
+				ShowNotes  bool `json:"show_notes"`
+			} `json:"right_panel"`
+		} `json:"interface"`
 	} `json:"visuals"`
 
 	Debug struct {
@@ -156,11 +166,17 @@ func NewDefault() *Settings {
 	s.Visuals.Miss.RGB = RGB{255, 67, 67}
 	s.Visuals.Miss.LineWidth = 10.0
 
-	s.Visuals.Background.RGB = RGB{12, 12, 12}
-	s.Visuals.Background.Corners.RGBA = RGBA{127, 127, 127, 255}
-	s.Visuals.Background.Corners.RoundCorners = 0
-	s.Visuals.Background.Corners.LineWidth = 5.0
-	s.Visuals.Background.Corners.Length = 0.5
+	s.Visuals.Interface.BackgroundRGB = RGB{12, 12, 12}
+	s.Visuals.Interface.Corners.RGBA = RGBA{127, 127, 127, 255}
+	s.Visuals.Interface.Corners.RoundCorners = 0
+	s.Visuals.Interface.Corners.LineWidth = 5.0
+	s.Visuals.Interface.Corners.Length = 0.5
+	s.Visuals.Interface.LeftPanel.ShowCombo = true
+	s.Visuals.Interface.LeftPanel.ShowGrade = true
+	s.Visuals.Interface.LeftPanel.ShowAccuracy = true
+	s.Visuals.Interface.RightPanel.ShowScore = true
+	s.Visuals.Interface.RightPanel.ShowMisses = true
+	s.Visuals.Interface.RightPanel.ShowNotes = true
 
 	s.Debug.ShowCollision = false
 	return s

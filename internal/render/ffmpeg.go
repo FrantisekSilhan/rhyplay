@@ -48,7 +48,7 @@ func (r *Renderer) prepareArgs(outputPath, audioPath string, progressPort int) (
 		currentInputIdx++
 	}
 
-	hitSoundPath := "sounds/hit.mp3"
+	hitSoundPath := "assets/sounds/hit.mp3"
 	hitIdx := currentInputIdx
 	args = append(args, "-i", hitSoundPath)
 	currentInputIdx++

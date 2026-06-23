@@ -18,6 +18,25 @@ func (r *Renderer) updateScoreLogic(dc *gg.Context, engineTime float64, replayWi
 	halfHitbox := (r.c.HitboxSize*r.ResScale)/2.0 + 1.0
 
 	for _, f := range replayWindow {
+		for i := r.Score.NextPendingNoteIdx; i < len(r.RenderNotes); i++ {
+			rn := &r.RenderNotes[i]
+
+			if rn.Status != StatusPending {
+				if i == r.Score.NextPendingNoteIdx {
+					r.Score.NextPendingNoteIdx++
+				}
+				continue
+			}
+
+			if rn.TargetTime+hitWindow > f.Progress {
+				break
+			}
+
+			rn.Status = StatusMiss
+			rn.ResolvedAt = rn.TargetTime + hitWindow
+			r.Score.MissCount++
+			r.Score.Combo = 0
+		}
 		if !f.Hit {
 			continue
 		}
@@ -26,7 +45,7 @@ func (r *Renderer) updateScoreLogic(dc *gg.Context, engineTime float64, replayWi
 			r.drawCursorHit(dc, f.X, f.Y, shiftX, shiftY)
 		}
 
-		for i := 0; i < len(r.RenderNotes); i++ {
+		for i := r.Score.NextPendingNoteIdx; i < len(r.RenderNotes); i++ {
 			rn := &r.RenderNotes[i]
 
 			if rn.Status != StatusPending {
@@ -48,19 +67,26 @@ func (r *Renderer) updateScoreLogic(dc *gg.Context, engineTime float64, replayWi
 
 			if dx <= halfHitbox && dy <= halfHitbox {
 				rn.Status = StatusHit
-				rn.ResolvedAt = engineTime
-				r.HitCount++
+				rn.ResolvedAt = f.Progress
+				r.Score.HitCount++
+				r.Score.Combo++
+				r.Score.Score += r.Score.Combo * 100
 				break
 			}
 		}
 	}
 
-	for i := 0; i < len(r.RenderNotes); i++ {
+	for i := r.Score.NextPendingNoteIdx; i < len(r.RenderNotes); i++ {
 		rn := &r.RenderNotes[i]
 		if rn.Status == StatusPending && engineTime > rn.TargetTime+hitWindow {
 			rn.Status = StatusMiss
-			rn.ResolvedAt = engineTime
-			r.MissCount++
+			rn.ResolvedAt = rn.TargetTime + hitWindow
+			r.Score.MissCount++
+			r.Score.Combo = 0
+		} else if rn.Status == StatusPending {
+			break
+		} else if i == r.Score.NextPendingNoteIdx {
+			r.Score.NextPendingNoteIdx++
 		}
 	}
 }

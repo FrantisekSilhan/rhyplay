@@ -5,6 +5,8 @@ import (
 	"math"
 	"rhyplay/internal/config"
 	"rhyplay/internal/game"
+	"strconv"
+	"strings"
 
 	"github.com/fogleman/gg"
 )
@@ -121,20 +123,160 @@ func (r *Renderer) DrawNote(dc *gg.Context, alpha float64, noteIdx int, cx, cy, 
 
 func (r *Renderer) DrawUI(dc *gg.Context, shiftX, shiftY float64) {
 	r.DrawCorners(dc, shiftX, shiftY)
+	dc.SetFontFace(r.Font.ExtraBold)
 
-	processed := r.HitCount + r.MissCount
-	text := fmt.Sprintf("%d / %d", r.HitCount, processed)
+	pathSize := r.c.BackgroundDrawSize * r.ResScale
+	padding := 120.0 * r.ResScale
 
+	pl := shiftX - pathSize/2
+	pr := shiftX + pathSize/2
+	pt := shiftY - pathSize/2
+
+	processed := r.Score.HitCount + r.Score.MissCount
+	i := r.s.Visuals.Interface
+	rightPanelStats := []Stat{}
+	if i.RightPanel.ShowScore {
+		rightPanelStats = append(rightPanelStats, Stat{Label: "SCORE", Value: numberToString(r.Score.Score)})
+	}
+	if i.RightPanel.ShowMisses {
+		rightPanelStats = append(rightPanelStats, Stat{Label: "MISSES", Value: fmt.Sprintf("%d", r.Score.MissCount)})
+	}
+	if i.RightPanel.ShowNotes {
+		rightPanelStats = append(rightPanelStats, Stat{Label: "NOTES", Value: fmt.Sprintf("%d/%d", r.Score.HitCount, processed)})
+	}
+	r.drawRightPanel(dc, pr+padding, pt, pathSize, rightPanelStats)
+
+	acc := -1.0
+	if processed > 0 {
+		acc = (float64(r.Score.HitCount) / float64(processed)) * 100.0
+	}
+
+	leftPanelStats := []Stat{}
+	if i.LeftPanel.ShowCombo {
+		leftPanelStats = append(leftPanelStats, Stat{Label: "COMBO", Value: fmt.Sprintf("%d", r.Score.Combo)})
+	}
+	if i.LeftPanel.ShowGrade {
+		label := "GRADE"
+		if acc < 0 {
+			leftPanelStats = append(leftPanelStats, Stat{Label: label, Value: "--", IsRank: true})
+		} else {
+			rank, color := getRank(acc)
+			leftPanelStats = append(leftPanelStats, Stat{Label: label, Value: rank, IsRank: true, Color: color})
+		}
+	}
+	if i.LeftPanel.ShowAccuracy {
+		label := "ACCURACY"
+		val := "--"
+		if acc >= 0 {
+			val = formatAccuracy(acc)
+		}
+		leftPanelStats = append(leftPanelStats, Stat{Label: label, Value: val})
+	}
+
+	r.drawLeftPanel(dc, pl-padding, pt, pathSize, leftPanelStats)
+}
+
+func (r *Renderer) drawRightPanel(dc *gg.Context, alignX, pt float64, pathSize float64, stats []Stat) {
+	items := len(stats)
+	if items == 0 {
+		return
+	}
+	slotHeight := pathSize / float64(items)
+
+	for i, stat := range stats {
+		y := pt + (float64(i) * slotHeight) + (slotHeight / 2.0)
+
+		r.drawStat(dc, stat.Label, stat.Value, alignX, y)
+	}
+}
+
+func (r *Renderer) drawLeftPanel(dc *gg.Context, alignX, pt float64, pathSize float64, stats []Stat) {
+	items := len(stats)
+	if items == 0 {
+		return
+	}
+	slotHeight := pathSize / float64(items)
+
+	for i, stat := range stats {
+		y := pt + (float64(i) * slotHeight) + (slotHeight / 2.0)
+
+		if stat.IsRank {
+			if stat.Value != "--" {
+				r.drawRank(dc, stat.Value, stat.Color, alignX, y)
+			}
+		} else {
+			r.drawStat(dc, stat.Label, stat.Value, alignX, y)
+		}
+
+	}
+}
+
+type Stat struct {
+	Label  string
+	Value  string
+	IsRank bool
+	Color  config.RGB
+}
+
+func numberToString(n int) string {
+	s := strconv.Itoa(n)
+	res := ""
+	for i, v := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			res += ","
+		}
+		res += string(v)
+	}
+	return res
+}
+
+func formatAccuracy(acc float64) string {
+	s := strconv.FormatFloat(acc, 'f', 2, 64)
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimRight(s, ".")
+	return s + "%"
+}
+
+func getRank(acc float64) (string, config.RGB) {
+	if acc == 100 {
+		return "SS", config.RGB{150, 82, 227}
+	}
+	if acc >= 98 {
+		return "S", config.RGB{152, 145, 255}
+	}
+	if acc >= 95 {
+		return "A", config.RGB{145, 255, 146}
+	}
+	if acc >= 90 {
+		return "B", config.RGB{231, 255, 192}
+	}
+	if acc >= 85 {
+		return "C", config.RGB{252, 247, 179}
+	}
+	return "D", config.RGB{252, 208, 179}
+}
+
+func (r *Renderer) drawRank(dc *gg.Context, rank string, color config.RGB, x, y float64) {
+	dc.SetFontFace(r.Font.Large)
+	dc.SetRGB255(color.ToInt())
+	dc.DrawStringAnchored(rank, x, y, 0.5, 0.5)
+}
+
+func (r *Renderer) drawStat(dc *gg.Context, label, value string, x, y float64) {
+	verticalItemGap := 16.0 * r.ResScale
+
+	dc.SetFontFace(r.Font.ExtraBold)
+	dc.SetRGB255(160, 160, 160)
+	dc.DrawStringAnchored(label, x, y-verticalItemGap, 0.5, 0.5)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(text, float64(r.Width)-30, 30, 1, 0.5)
-	dc.Fill()
+	dc.DrawStringAnchored(value, x, y+verticalItemGap, 0.5, 0.5)
 }
 
 func (r *Renderer) DrawCorners(dc *gg.Context, shiftX, shiftY float64) {
-	c := r.s.Visuals.Background.Corners
+	c := r.s.Visuals.Interface.Corners
 
 	pathSize := r.c.BackgroundDrawSize * r.ResScale
-	lineWidth := r.s.Visuals.Background.Corners.LineWidth * r.ResScale
+	lineWidth := r.s.Visuals.Interface.Corners.LineWidth * r.ResScale
 
 	x, y := shiftX-pathSize/2, shiftY-pathSize/2
 
@@ -243,7 +385,7 @@ func (r *Renderer) DrawHitbox(dc *gg.Context, x, y, size float64) {
 }
 
 func (r *Renderer) DrawBackground(dc *gg.Context) {
-	c := r.s.Visuals.Background.RGB
+	c := r.s.Visuals.Interface.BackgroundRGB
 	dc.SetRGB255(c.ToInt())
 	dc.Clear()
 }

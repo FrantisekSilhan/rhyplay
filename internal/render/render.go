@@ -13,12 +13,29 @@ import (
 	"rhyplay/internal/parser"
 
 	"github.com/fogleman/gg"
+	"golang.org/x/image/font"
 )
 
 type NoteConstants struct {
 	at        float64
 	horizon   float64
 	depthStep float64
+}
+
+type Score struct {
+	HitCount  int
+	MissCount int
+	Combo     int
+	Score     int
+
+	NextPendingNoteIdx int
+}
+
+type Font struct {
+	Regular   font.Face
+	SemiBold  font.Face
+	Large     font.Face
+	ExtraBold font.Face
 }
 
 type Renderer struct {
@@ -41,12 +58,13 @@ type Renderer struct {
 	RenderNotes  []RenderNote
 	RenderFrames []RenderFrame
 
-	HitCount          int
-	MissCount         int
 	LastProcessedTime float64
+
+	Score Score
+	Font  Font
 }
 
-func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
+func NewRenderer(b *parser.MapData, r *parser.ReplayData) (*Renderer, error) {
 	s := config.Current
 	w, h := s.Video.Width, s.Video.Height
 
@@ -83,7 +101,7 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
 		depthStep: depthStep,
 	}
 
-	return &Renderer{
+	renderer := &Renderer{
 		s:              s,
 		c:              c,
 		nc:             noteConstants,
@@ -102,10 +120,25 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) *Renderer {
 		RenderNotes:  make([]RenderNote, len(b.Notes)),
 		RenderFrames: make([]RenderFrame, len(r.Frames)),
 
-		HitCount:          0,
-		MissCount:         0,
 		LastProcessedTime: -1,
+
+		Score: Score{
+			HitCount:           0,
+			MissCount:          0,
+			Combo:              0,
+			Score:              0,
+			NextPendingNoteIdx: 0,
+		},
+		Font: Font{},
 	}
+
+	renderer.prepareData()
+	err := renderer.loadFonts()
+	if err != nil {
+		return nil, err
+	}
+
+	return renderer, nil
 }
 
 func (r *Renderer) writeFrames(stdin io.WriteCloser, videoDuration float64) {
@@ -218,7 +251,6 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 		progressDone <- true
 	}()
 
-	r.prepareData()
 	r.writeFrames(stdin, videoDuration)
 
 	stdin.Close()

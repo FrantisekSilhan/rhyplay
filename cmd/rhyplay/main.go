@@ -94,7 +94,11 @@ func main() {
 	fmt.Printf("Done (%v)\n", time.Since(start).Truncate(time.Millisecond))
 
 	fmt.Println(" [3/3] Rendering video... ")
-	renderer := render.NewRenderer(mapData, replayData)
+	renderer, err := render.NewRenderer(mapData, replayData)
+	if err != nil {
+		fmt.Printf("\nError initializing renderer: %v\n", err)
+		os.Exit(1)
+	}
 
 	start = time.Now()
 	err = renderer.Render("output.mp4", audioFile.Path)

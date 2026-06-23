@@ -1,5 +1,11 @@
 package render
 
+import (
+	"fmt"
+
+	"github.com/fogleman/gg"
+)
+
 type RenderNote struct {
 	NoteIdx    int
 	BaseX      float64
@@ -53,4 +59,35 @@ func (r *Renderer) prepareData() {
 			Hit:      f.Hit,
 		}
 	}
+}
+
+func (r *Renderer) loadFonts() error {
+	baseSize := 24.0 * r.ResScale
+	largeSize := 48.0 * r.ResScale
+
+	fReg, err := gg.LoadFontFace("assets/fonts/Nunito-Regular.ttf", baseSize)
+	if err != nil {
+		return fmt.Errorf("failed to load font: %w", err)
+	}
+	r.Font.Regular = fReg
+
+	fSemi, err := gg.LoadFontFace("assets/fonts/Nunito-SemiBold.ttf", baseSize)
+	if err != nil {
+		return fmt.Errorf("failed to load font: %w", err)
+	}
+	r.Font.SemiBold = fSemi
+
+	fLarge, err := gg.LoadFontFace("assets/fonts/Nunito-ExtraBold.ttf", largeSize)
+	if err != nil {
+		return fmt.Errorf("failed to load font: %w", err)
+	}
+	r.Font.Large = fLarge
+
+	fExtraBold, err := gg.LoadFontFace("assets/fonts/Nunito-ExtraBold.ttf", baseSize)
+	if err != nil {
+		return fmt.Errorf("failed to load font: %w", err)
+	}
+	r.Font.ExtraBold = fExtraBold
+
+	return nil
 }

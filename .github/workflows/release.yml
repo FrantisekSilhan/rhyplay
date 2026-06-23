@@ -41,7 +41,7 @@ jobs:
           New-Item -ItemType Directory -Path $dirName
           Move-Item "rhyplay-$val.exe" -Destination "$dirName/"
           Move-Item "ffmpeg.exe" -Destination "$dirName/"
-          Copy-Item -Recurse "sounds" -Destination "$dirName/"
+          Copy-Item -Recurse "assets" -Destination "$dirName/"
           Compress-Archive -Path $dirName -DestinationPath "$dirName-win.zip"
 
       - name: Upload Release
