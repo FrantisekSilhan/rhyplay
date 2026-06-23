@@ -116,7 +116,7 @@ func (r *Renderer) DrawNote(dc *gg.Context, alpha float64, noteIdx int, cx, cy, 
 	}
 
 	color := r.s.Visuals.Note.RGB[noteIdx%len(r.s.Visuals.Note.RGB)]
-	dc.SetRGBA255(color.ToIntAlpha(alpha))
+	dc.SetRGBA255(color.ToIntAlpha(alpha * r.s.Visuals.Note.Opacity))
 	dc.SetLineWidth(s.LineWidth * r.ResScale * perspective)
 	dc.Stroke()
 }

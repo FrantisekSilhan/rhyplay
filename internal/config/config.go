@@ -62,8 +62,9 @@ type Settings struct {
 		Modifiers Modifiers `json:"modifiers"`
 		Parallax  float64   `json:"parallax"`
 		Note      struct {
-			RGB        []RGB `json:"rgb"`
-			ShowHitbox bool  `json:"show_hitbox"`
+			RGB        []RGB   `json:"rgb"`
+			Opacity    float64 `json:"opacity"`
+			ShowHitbox bool    `json:"show_hitbox"`
 			Fill       struct {
 				Enabled bool   `json:"enabled"`
 				Mode    string `json:"mode"` // "solid" or "custom"
@@ -136,6 +137,7 @@ func NewDefault() *Settings {
 	s.Visuals.Parallax = 5.0
 
 	s.Visuals.Note.RGB = []RGB{{229, 229, 229}}
+	s.Visuals.Note.Opacity = 1.0
 	s.Visuals.Note.ShowHitbox = false
 	s.Visuals.Note.Fill.Enabled = false
 	s.Visuals.Note.Fill.Mode = "solid"
