@@ -10,6 +10,8 @@ type RenderNote struct {
 	NoteIdx    int
 	BaseX      float64
 	BaseY      float64
+	RawX       float64
+	RawY       float64
 	TargetTime float64
 	Status     int
 	ResolvedAt float64
@@ -19,6 +21,8 @@ type RenderFrame struct {
 	Progress float64
 	X        float64
 	Y        float64
+	RawX     float64
+	RawY     float64
 	Hit      bool
 }
 
@@ -39,11 +43,13 @@ func (r *Renderer) cursorToScreen(cx, cy float32) (sx, sy float64) {
 func (r *Renderer) prepareData() {
 	r.RenderNotes = make([]RenderNote, len(r.Beatmap.Notes))
 	for i, n := range r.Beatmap.Notes {
-		sx, sy := r.gameToScreen(n.X, n.Y, 1.0)
+		//sx, sy := r.gameToScreen(n.X, n.Y, 1.0)
 		r.RenderNotes[i] = RenderNote{
 			NoteIdx:    i,
-			BaseX:      sx,
-			BaseY:      sy,
+			BaseX:      n.X * r.NoteScale,
+			BaseY:      n.Y * r.NoteScale,
+			RawX:       n.X,
+			RawY:       n.Y,
 			TargetTime: float64(n.Time),
 			Status:     StatusPending,
 		}
@@ -51,11 +57,13 @@ func (r *Renderer) prepareData() {
 
 	r.RenderFrames = make([]RenderFrame, len(r.Replay.Frames))
 	for i, f := range r.Replay.Frames {
-		sx, sy := r.cursorToScreen(f.X, f.Y)
+		//sx, sy := r.cursorToScreen(f.X, f.Y)
 		r.RenderFrames[i] = RenderFrame{
 			Progress: float64(f.Progress),
-			X:        sx,
-			Y:        -sy,
+			X:        float64(f.X) * r.CursorScale,
+			Y:        float64(-f.Y) * r.CursorScale,
+			RawX:     float64(f.X),
+			RawY:     float64(-f.Y),
 			Hit:      f.Hit,
 		}
 	}

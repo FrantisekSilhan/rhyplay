@@ -14,7 +14,7 @@ type ReplayFrame struct {
 	Progress uint32
 	X        float32
 	Y        float32
-	Val      float32
+	Health   float32
 	Hit      bool
 }
 

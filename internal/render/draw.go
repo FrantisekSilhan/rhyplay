@@ -125,7 +125,7 @@ func (r *Renderer) DrawUI(dc *gg.Context, shiftX, shiftY float64) {
 	r.DrawCorners(dc, shiftX, shiftY)
 	dc.SetFontFace(r.Font.ExtraBold)
 
-	pathSize := r.c.BackgroundDrawSize * r.ResScale
+	pathSize := r.c.BackgroundDrawBound * r.ResScale
 	padding := 120.0 * r.ResScale
 
 	pl := shiftX - pathSize/2
@@ -137,6 +137,9 @@ func (r *Renderer) DrawUI(dc *gg.Context, shiftX, shiftY float64) {
 	rightPanelStats := []Stat{}
 	if i.RightPanel.ShowScore {
 		rightPanelStats = append(rightPanelStats, Stat{Label: "SCORE", Value: numberToString(r.Score.Score)})
+	}
+	if i.RightPanel.ShowPoints {
+		rightPanelStats = append(rightPanelStats, Stat{Label: "POINTS", Value: fmt.Sprintf("%d", r.calculateRP())})
 	}
 	if i.RightPanel.ShowMisses {
 		rightPanelStats = append(rightPanelStats, Stat{Label: "MISSES", Value: fmt.Sprintf("%d", r.Score.MissCount)})
@@ -275,7 +278,7 @@ func (r *Renderer) drawStat(dc *gg.Context, label, value string, x, y float64) {
 func (r *Renderer) DrawCorners(dc *gg.Context, shiftX, shiftY float64) {
 	c := r.s.Visuals.Interface.Corners
 
-	pathSize := r.c.BackgroundDrawSize * r.ResScale
+	pathSize := r.c.BackgroundDrawBound * r.ResScale
 	lineWidth := r.s.Visuals.Interface.Corners.LineWidth * r.ResScale
 
 	x, y := shiftX-pathSize/2, shiftY-pathSize/2
@@ -288,6 +291,12 @@ func (r *Renderer) DrawCorners(dc *gg.Context, shiftX, shiftY float64) {
 	radius := (pathSize / 2.0) * c.RoundCorners
 	if radius > actualLength {
 		radius = actualLength
+	}
+
+	if c.Length == 1 {
+		dc.DrawRoundedRectangle(x, y, pathSize, pathSize, radius)
+		dc.Stroke()
+		return
 	}
 
 	if radius > 0 {
@@ -342,7 +351,7 @@ func (r *Renderer) DrawCorners(dc *gg.Context, shiftX, shiftY float64) {
 func (r *Renderer) DrawCursor(dc *gg.Context, x, y, shiftX, shiftY float64) {
 	userScale := r.s.Visuals.Cursor.Size
 
-	visualSize := game.CursorDrawSize * r.ResScale * userScale
+	visualSize := r.c.CursorDrawSize * r.ResScale * userScale
 	lineWidth := r.s.Visuals.Cursor.Shape.LineWidth * r.ResScale * userScale
 
 	screenX, screenY := shiftX+x, shiftY+y
@@ -378,7 +387,7 @@ func (r *Renderer) DrawCursor(dc *gg.Context, x, y, shiftX, shiftY float64) {
 }
 
 func (r *Renderer) DrawHitbox(dc *gg.Context, x, y, size float64) {
-	dc.SetRGBA255(255, 0, 0, 255)
+	dc.SetRGBA255(255, 255, 255, 255)
 	dc.SetLineWidth(1.0)
 	dc.DrawRectangle(x, y, size, size)
 	dc.Stroke()
@@ -397,7 +406,7 @@ func (r *Renderer) DrawCollision(dc *gg.Context, rn RenderNote, curX, curY float
 	cursorDrawX := shiftX + curX
 	cursorDrawY := shiftY + curY
 
-	hitboxSize := r.c.HitboxSize * r.ResScale
+	hitboxSize := r.c.NoteHitboxDrawSize * r.ResScale
 
 	dc.SetRGBA255(255, 0, 0, 150)
 	dc.SetLineWidth(2.0)

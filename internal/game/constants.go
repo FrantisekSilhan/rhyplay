@@ -1,27 +1,36 @@
 package game
 
 type Constants struct {
-	NoteUnitToPx       float64
-	CursorUnitToPx     float64
-	HitboxSize         float64
-	BackgroundDrawSize float64
+	NoteDrawSize        float64
+	NoteHitboxDrawSize  float64
+	CursorDrawSize      float64
+	BackgroundDrawBound float64
+	HitThreshold        float64
 }
 
 const (
-	BaseHeight     = 1080.0
-	NoteUnitToPx   = 440.0 / 2.00
-	CursorUnitToPx = 606.0 / 2.74
-	HitboxSize     = 250.0
+	BaseHeight = 1080.0
 
-	// Hardrock
-	NoteUnitToPxHR   = 484 / 2.00
-	CursorUnitToPxHR = 672 / 2.74
-	HitboxSizeHR     = 200.0
+	HitboxRadiusNormal = 0.5
+	CursorRadiusNormal = 0.07
+
+	HitboxRadiusHR = 0.4
+	CursorRadiusHR = 0.056
+
+	NoteUnitNormal    = 219.0
+	CursorBoundNormal = 1.36874997615814 // (3.0 / 2.0) - (0.2625 / 2.0)
+
+	NoteUnitHR    = 241.0
+	CursorBoundHR = 1.51875007152557
 
 	NoteDrawSize         = 182.0
 	CursorDrawSize       = 56.0
-	BackgroundDrawSize   = 656.0
-	BackgroundDrawSizeHR = 722.0
+	NoteHitboxDrawSize   = 250.0
+	NoteHitboxDrawSizeHR = 200.0
+
+	CursorDrawBound       = 606.0
+	BackgroundDrawBound   = 654.0
+	BackgroundDrawBoundHR = 720.0
 
 	HitWindowMS = 55.0
 

@@ -15,7 +15,6 @@ const (
 
 func (r *Renderer) updateScoreLogic(dc *gg.Context, engineTime float64, replayWindow []RenderFrame, shiftX, shiftY float64) {
 	hitWindow := game.GetEffectiveHitWindow(r.Replay.ModState.SpeedMultiplier)
-	halfHitbox := (r.c.HitboxSize*r.ResScale)/2.0 + 1.0
 
 	for _, f := range replayWindow {
 		for i := r.Score.NextPendingNoteIdx; i < len(r.RenderNotes); i++ {
@@ -28,44 +27,28 @@ func (r *Renderer) updateScoreLogic(dc *gg.Context, engineTime float64, replayWi
 				continue
 			}
 
-			if rn.TargetTime+hitWindow > f.Progress {
-				break
-			}
-
-			rn.Status = StatusMiss
-			rn.ResolvedAt = rn.TargetTime + hitWindow
-			r.Score.MissCount++
-			r.Score.Combo = 0
-		}
-		if !f.Hit {
-			continue
-		}
-
-		if r.s.Debug.ShowCollision {
-			r.drawCursorHit(dc, f.X, f.Y, shiftX, shiftY)
-		}
-
-		for i := r.Score.NextPendingNoteIdx; i < len(r.RenderNotes); i++ {
-			rn := &r.RenderNotes[i]
-
-			if rn.Status != StatusPending {
-				continue
-			}
-
 			if f.Progress < rn.TargetTime || f.Progress > rn.TargetTime+hitWindow {
+				if f.Progress > rn.TargetTime+hitWindow {
+					rn.Status = StatusMiss
+					rn.ResolvedAt = rn.TargetTime + hitWindow
+					r.Score.MissCount++
+					r.Score.Combo = 0
+				}
 				continue
 			}
 
-			if i > 0 && r.RenderNotes[i-1].Status == StatusPending {
-				if rn.BaseX == r.RenderNotes[i-1].BaseX && rn.BaseY == r.RenderNotes[i-1].BaseY {
-					continue
-				}
+			if !f.Hit {
+				continue
 			}
 
-			dx := math.Abs(f.X - rn.BaseX)
-			dy := math.Abs(f.Y - rn.BaseY)
+			if r.s.Debug.ShowCollision {
+				r.drawCursorHit(dc, f.X, f.Y, shiftX, shiftY)
+			}
 
-			if dx <= halfHitbox && dy <= halfHitbox {
+			dx := math.Abs(f.RawX - rn.RawX)
+			dy := math.Abs(f.RawY - rn.RawY)
+
+			if dx <= r.c.HitThreshold && dy <= r.c.HitThreshold {
 				rn.Status = StatusHit
 				rn.ResolvedAt = f.Progress
 				r.Score.HitCount++
@@ -98,4 +81,29 @@ func (r *Renderer) drawCursorHit(dc *gg.Context, fx, fy, shiftX, shiftY float64)
 	dc.SetRGBA255(0, 255, 0, 255)
 	dc.DrawCircle(cursorDrawX, cursorDrawY, 8)
 	dc.Stroke()
+}
+
+func (r *Renderer) calculateRP() int {
+	processed := r.Score.HitCount + r.Score.MissCount
+	if processed == 0 {
+		return 0
+	}
+
+	accuracy := float64(r.Score.HitCount) / float64(processed)
+
+	ease := 0.0
+	if accuracy > 0 {
+		ease = math.Pow(2.0, r.Score.EaseBase*accuracy-r.Score.EaseBase)
+	}
+
+	starMultiplier := r.Score.StarMultiplier
+
+	if false { // No fail penalty
+		starMultiplier *= math.Pow(0.95, float64(r.Score.MissCount))
+	}
+
+	val := (starMultiplier * ease * 100.0 / 2.0)
+	rp := math.Round(math.Pow(val, 2.0)/1000.0) * 2.0
+
+	return int(rp)
 }

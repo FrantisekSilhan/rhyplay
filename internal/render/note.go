@@ -42,10 +42,10 @@ func (r *Renderer) SetupNote(dc *gg.Context, rn RenderNote, engineTime, timeDiff
 	alpha := r.calculateNoteAlpha(progress, timeDiff, v.Modifiers)
 
 	if alpha > 0 {
-		noteSize := (game.NoteDrawSize - v.Note.Shape.LineWidth) * r.ResScale * perspective
+		noteSize := (r.c.NoteDrawSize - v.Note.Shape.LineWidth) * r.ResScale * perspective * r.s.Visuals.Note.Size
 		r.DrawNote(dc, alpha, rn.NoteIdx, drawX, drawY, noteSize, perspective)
 		if v.Note.ShowHitbox {
-			hitboxSize := r.c.HitboxSize * r.ResScale * perspective
+			hitboxSize := r.c.NoteHitboxDrawSize * r.ResScale * perspective
 			r.DrawHitbox(dc, drawX-hitboxSize/2, drawY-hitboxSize/2, hitboxSize)
 		}
 	}

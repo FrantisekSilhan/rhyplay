@@ -63,6 +63,7 @@ type Settings struct {
 		Parallax  float64   `json:"parallax"`
 		Note      struct {
 			RGB        []RGB   `json:"rgb"`
+			Size       float64 `json:"size"`
 			Opacity    float64 `json:"opacity"`
 			ShowHitbox bool    `json:"show_hitbox"`
 			Fill       struct {
@@ -78,8 +79,8 @@ type Settings struct {
 			Shape Shape `json:"shape"`
 		} `json:"note"`
 		Cursor struct {
-			Size float64 `json:"size"`
 			RGBA RGBA    `json:"rgba"`
+			Size float64 `json:"size"`
 			Fill struct {
 				Enabled bool   `json:"enabled"`
 				Mode    string `json:"mode"` // "solid" or "custom"
@@ -112,6 +113,7 @@ type Settings struct {
 			} `json:"left_panel"`
 			RightPanel struct {
 				ShowScore  bool `json:"show_score"`
+				ShowPoints bool `json:"show_points"`
 				ShowMisses bool `json:"show_misses"`
 				ShowNotes  bool `json:"show_notes"`
 			} `json:"right_panel"`
@@ -136,6 +138,7 @@ func NewDefault() *Settings {
 
 	s.Visuals.Parallax = 5.0
 
+	s.Visuals.Note.Size = 1.0
 	s.Visuals.Note.RGB = []RGB{{229, 229, 229}}
 	s.Visuals.Note.Opacity = 1.0
 	s.Visuals.Note.ShowHitbox = false
@@ -177,6 +180,7 @@ func NewDefault() *Settings {
 	s.Visuals.Interface.LeftPanel.ShowGrade = true
 	s.Visuals.Interface.LeftPanel.ShowAccuracy = true
 	s.Visuals.Interface.RightPanel.ShowScore = true
+	s.Visuals.Interface.RightPanel.ShowPoints = true
 	s.Visuals.Interface.RightPanel.ShowMisses = true
 	s.Visuals.Interface.RightPanel.ShowNotes = true
 

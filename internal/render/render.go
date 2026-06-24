@@ -29,6 +29,9 @@ type Score struct {
 	Score     int
 
 	NextPendingNoteIdx int
+
+	EaseBase       float64
+	StarMultiplier float64
 }
 
 type Font struct {
@@ -74,22 +77,26 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) (*Renderer, error) {
 	}
 
 	c := &game.Constants{
-		NoteUnitToPx:       game.NoteUnitToPx,
-		CursorUnitToPx:     game.CursorUnitToPx,
-		HitboxSize:         game.HitboxSize,
-		BackgroundDrawSize: game.BackgroundDrawSize,
+		NoteDrawSize:        game.NoteDrawSize,
+		NoteHitboxDrawSize:  game.NoteHitboxDrawSize,
+		CursorDrawSize:      game.CursorDrawSize,
+		BackgroundDrawBound: game.BackgroundDrawBound,
+		HitThreshold:        game.HitboxRadiusNormal + game.CursorRadiusNormal,
 	}
-	cursorScale := game.CursorUnitToPx * resScale
-	noteScale := game.NoteUnitToPx * resScale
-
+	var noteScale, cursorScale, bound float64
 	if r.ModState.HardrockEnabled {
-		c.NoteUnitToPx = game.NoteUnitToPxHR
-		c.CursorUnitToPx = game.CursorUnitToPxHR
-		c.HitboxSize = game.HitboxSizeHR
-		c.BackgroundDrawSize = game.BackgroundDrawSizeHR
-		cursorScale = game.CursorUnitToPxHR * resScale
-		noteScale = game.NoteUnitToPxHR * resScale
+		noteScale = game.NoteUnitHR * resScale
+		bound = game.CursorBoundHR
+		c.BackgroundDrawBound = game.BackgroundDrawBoundHR
+		c.NoteHitboxDrawSize = game.NoteHitboxDrawSizeHR
+		c.HitThreshold = game.HitboxRadiusHR + game.CursorRadiusHR
+	} else {
+		noteScale = game.NoteUnitNormal * resScale
+		bound = game.CursorBoundNormal
 	}
+
+	visualBoundPx := (game.CursorDrawBound / 2.0) * resScale
+	cursorScale = visualBoundPx / bound
 
 	at := s.Gameplay.ApproachDistance / s.Gameplay.ApproachRate
 	horizon := (1000 * at) * float64(r.ModState.SpeedMultiplier)
@@ -100,6 +107,12 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) (*Renderer, error) {
 		horizon:   horizon,
 		depthStep: depthStep,
 	}
+
+	easeBase := 100.0 - 12.0*b.StarRating
+	if easeBase < 5.0 {
+		easeBase = 5.0
+	}
+	starMultiplier := float64(r.ModState.SpeedMultiplier) * float64(b.StarRating)
 
 	renderer := &Renderer{
 		s:              s,
@@ -128,6 +141,8 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) (*Renderer, error) {
 			Combo:              0,
 			Score:              0,
 			NextPendingNoteIdx: 0,
+			EaseBase:           easeBase,
+			StarMultiplier:     starMultiplier,
 		},
 		Font: Font{},
 	}
