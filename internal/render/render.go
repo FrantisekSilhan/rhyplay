@@ -108,11 +108,11 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) (*Renderer, error) {
 		depthStep: depthStep,
 	}
 
-	easeBase := 100.0 - 12.0*b.StarRating
+	starMultiplier := float64(r.ModState.SpeedMultiplier) * float64(b.StarRating)
+	easeBase := 100.0 - 12.0*starMultiplier
 	if easeBase < 5.0 {
 		easeBase = 5.0
 	}
-	starMultiplier := float64(r.ModState.SpeedMultiplier) * float64(b.StarRating)
 
 	renderer := &Renderer{
 		s:              s,
