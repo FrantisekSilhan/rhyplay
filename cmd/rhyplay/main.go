@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"rhyplay/internal/config"
@@ -28,6 +29,20 @@ const (
 )
 
 func main() {
+	starsPtr := flag.Float64("stars", 0.0, "Map star rating")
+	flag.Usage = func() {
+		printHeader()
+		fmt.Println("\nUsage:")
+		fmt.Println("  rhyplay [flags] <replay.rhr> <map_file>")
+		fmt.Println("\nArguments:")
+		fmt.Println("  <replay.rhr>   The replay file")
+		fmt.Println("  <map_file>     The beatmap file (supports: .rhm, .sspm)")
+		fmt.Println("\nOptional flags:")
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+	args := flag.Args()
+
 	configPath := "settings.json"
 	changed, err := config.Load(configPath)
 	if err != nil {
@@ -48,18 +63,24 @@ func main() {
 		os.Exit(0)
 	}
 
-	if len(os.Args) < 3 {
+	if len(args) > 2 {
+		fmt.Println("[!] Found unexpected arguments. Ensure flags are placed before positional arguments.")
+	}
+
+	if len(args) < 2 {
 		printHeader()
 		fmt.Println("\nUsage:")
-		fmt.Println("  rhyplay <replay.rhr> <map_file>")
+		fmt.Println("  rhyplay [flags] <replay.rhr> <map_file>")
 		fmt.Println("\nArguments:")
 		fmt.Println("  <replay.rhr>   The replay file")
 		fmt.Println("  <map_file>     The beatmap file (supports: .rhm, .sspm)")
+		fmt.Println("\nOptional flags:")
+		fmt.Println("  --stars <value>  Override the map's star rating")
 		os.Exit(1)
 	}
 
-	replayPath := os.Args[1]
-	mapPath := os.Args[2]
+	replayPath := args[0]
+	mapPath := args[1]
 
 	printHeader()
 	fmt.Print("\n [1/3] Parsing files... ")
@@ -78,10 +99,16 @@ func main() {
 	}
 	fmt.Printf("Done (%v)\n", time.Since(start).Truncate(time.Millisecond))
 
+	stars := *starsPtr
+	if stars > 0.0 {
+		mapData.StarRating = stars
+	}
+
 	totalDuration := float64(replayData.Frames[len(replayData.Frames)-1].Progress) / 1000.0
 	fmt.Printf("       > Map:    %s\n", mapData.Title)
 	fmt.Printf("       > Length: %.2fs\n", totalDuration)
 	fmt.Printf("       > Notes:  %d\n", len(mapData.Notes))
+	fmt.Printf("       > Stars:  %.2f\n", mapData.StarRating)
 
 	fmt.Print(" [2/3] Extracting audio... ")
 	start = time.Now()
