@@ -2,5 +2,4 @@ data/
 output/
 ffmpeg.exe
 main.exe
-output.mp4
 settings.json

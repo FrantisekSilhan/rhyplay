@@ -14,7 +14,7 @@ const (
 )
 
 func (r *Renderer) updateScoreLogic(dc *gg.Context, engineTime float64, replayWindow []RenderFrame, shiftX, shiftY float64) {
-	hitWindow := game.GetEffectiveHitWindow(r.Replay.ModState.SpeedMultiplier)
+	hitWindow := game.GetEffectiveHitWindow(r.Replay.ScoreData.Speed)
 
 	for _, f := range replayWindow {
 		for i := r.Score.NextPendingNoteIdx; i < len(r.RenderNotes); i++ {

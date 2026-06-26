@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"rhyplay/internal/config"
 	"rhyplay/internal/parser"
 	"rhyplay/internal/render"
@@ -27,6 +28,14 @@ const (
 	ColorYellow = "\033[33m"
 	ColorCyan   = "\033[36m"
 )
+
+var illegalFileNameChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
+
+func sanitizePart(s string) string {
+	s = illegalFileNameChars.ReplaceAllString(s, "_")
+	s = regexp.MustCompile(`_+`).ReplaceAllString(s, "_")
+	return strings.Trim(s, " _")
+}
 
 func main() {
 	starsPtr := flag.Float64("stars", 0.0, "Map star rating")
@@ -120,6 +129,14 @@ func main() {
 	defer audioFile.Cleanup()
 	fmt.Printf("Done (%v)\n", time.Since(start).Truncate(time.Millisecond))
 
+	if _, err := os.Stat("output"); os.IsNotExist(err) {
+		err := os.Mkdir("output", 0755)
+		if err != nil {
+			fmt.Printf("\nError creating output directory: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	fmt.Println(" [3/3] Rendering video... ")
 	renderer, err := render.NewRenderer(mapData, replayData)
 	if err != nil {
@@ -127,8 +144,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	outputPath := fmt.Sprintf("output/%s_%s_%d.mp4", sanitizePart(replayData.ScoreData.PlayerName), sanitizePart(mapData.Title), replayData.ScoreData.Timestamp)
+
 	start = time.Now()
-	err = renderer.Render("output.mp4", audioFile.Path)
+	err = renderer.Render(outputPath, audioFile.Path)
 	if err != nil {
 		fmt.Printf("\n\n [X] RENDER ERROR\n")
 		fmt.Printf("     %v\n", err)
@@ -139,7 +158,7 @@ func main() {
 	separatorWidth := getHeaderWidth()
 	printSeparator(separatorWidth)
 	fmt.Printf(" Success! Render finished in %s\n", time.Since(start).Truncate(time.Second))
-	fmt.Println(" Saved to: output.mp4")
+	fmt.Printf(" Saved to: %s\n", outputPath)
 	printSeparator(separatorWidth)
 }
 

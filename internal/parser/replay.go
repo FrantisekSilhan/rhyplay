@@ -1,112 +1,187 @@
 package parser
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"os"
-	"regexp"
+	"time"
+)
+
+const (
+	KVersionNegateY        = 20260118
+	KVersionExtendedFields = 20260125
+	KVersionFailTime       = 20260222
+	KVersionInt32Time      = 20260510
+	KVersionBeatmapHash    = 20260517
 )
 
 type ReplayFrame struct {
-	Progress uint32
+	Progress int32
 	X        float32
 	Y        float32
 	Health   float32
 	Hit      bool
 }
 
+type ScoreData struct {
+	Timestamp   int64
+	DatePlayed  time.Time
+	PlayerName  string
+	LegacyMapID string
+	MapID       int32
+	StartFrom   int32
+	Mode        string
+	Passed      bool
+	Mods        string
+	Spin        bool
+	Speed       float32
+	TotalScore  int64
+	Accuracy    float32
+	Hits        int32
+	Misses      int32
+	Points      int32
+	FailTime    int32
+	Failed      bool
+	BeatmapHash string
+}
+
 type ReplayData struct {
-	ModState ModState
-	Frames   []ReplayFrame
+	Version   int32
+	ScoreData ScoreData
+	Frames    []ReplayFrame
 }
 
-type ModState struct {
-	SpeedMultiplier float32
-	HardrockEnabled bool
+type replayReader struct {
+	reader io.Reader
+	err    error
 }
 
-var hashMarkerRegex = regexp.MustCompile(`@[0-9a-fA-F]{64}`)
+func (r *replayReader) read(data interface{}) {
+	if r.err != nil {
+		return
+	}
+	r.err = binary.Read(r.reader, binary.LittleEndian, data)
+}
+
+func (r *replayReader) readString() string {
+	if r.err != nil {
+		return ""
+	}
+
+	var length uint32
+	var shift uint
+	for {
+		var b uint8
+		r.err = binary.Read(r.reader, binary.LittleEndian, &b)
+		if r.err != nil {
+			return ""
+		}
+
+		length |= uint32(b&0x7F) << shift
+		if (b & 0x80) == 0 {
+			break
+		}
+		shift += 7
+		if shift >= 35 {
+			r.err = fmt.Errorf("string length varint overflow")
+			return ""
+		}
+	}
+
+	if length == 0 {
+		return ""
+	}
+
+	buf := make([]byte, length)
+	_, r.err = io.ReadFull(r.reader, buf)
+	return string(buf)
+}
 
 func ParseReplay(path string) (*ReplayData, error) {
-	data, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
+	defer file.Close()
 
-	loc := hashMarkerRegex.FindIndex(data)
-	if loc == nil {
-		return nil, fmt.Errorf("marker not found in file")
+	rr := &replayReader{reader: file}
+	res := &ReplayData{}
+
+	rr.read(&res.Version)
+	rr.read(&res.ScoreData.Timestamp)
+
+	unixSecs := (res.ScoreData.Timestamp - 621355968000000000) / 10000000
+	res.ScoreData.DatePlayed = time.Unix(unixSecs, 0)
+
+	res.ScoreData.PlayerName = rr.readString()
+	res.ScoreData.LegacyMapID = rr.readString()
+	rr.read(&res.ScoreData.MapID)
+	rr.read(&res.ScoreData.StartFrom)
+	res.ScoreData.Mode = rr.readString()
+
+	if res.Version >= KVersionExtendedFields {
+		rr.read(&res.ScoreData.Passed)
+		res.ScoreData.Mods = rr.readString()
+		rr.read(&res.ScoreData.Spin)
+		rr.read(&res.ScoreData.Speed)
+		rr.read(&res.ScoreData.TotalScore)
+	} else {
+		res.ScoreData.Passed = true
+		res.ScoreData.Mods = "[]"
+		res.ScoreData.Speed = 1.0
 	}
 
-	markerIndex := loc[0]
+	rr.read(&res.ScoreData.Accuracy)
+	rr.read(&res.ScoreData.Hits)
+	rr.read(&res.ScoreData.Misses)
+	rr.read(&res.ScoreData.Points)
 
-	dataStart := markerIndex + 69
-	if dataStart >= len(data) {
-		return nil, fmt.Errorf("file too short after marker")
+	res.ScoreData.FailTime = -1
+	if res.Version >= KVersionFailTime {
+		rr.read(&res.ScoreData.FailTime)
+		res.ScoreData.Failed = res.ScoreData.FailTime >= 0
 	}
 
-	reader := bytes.NewReader(data[dataStart:])
-	var frames []ReplayFrame
+	if res.Version >= KVersionBeatmapHash {
+		res.ScoreData.BeatmapHash = rr.readString()
+	}
 
-	for {
+	var frameCount int32
+	rr.read(&frameCount)
+
+	if rr.err != nil {
+		return nil, fmt.Errorf("failed to read frame count: %w", rr.err)
+	}
+
+	res.Frames = make([]ReplayFrame, frameCount)
+	for i := 0; i < int(frameCount); i++ {
 		var frame ReplayFrame
-		err := binary.Read(reader, binary.LittleEndian, &frame)
-
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("error parsing frame at index %d: %w", len(frames), err)
-		}
-
-		if frame.X > 10.0 || frame.X < -10.0 {
-			break
+		if res.Version >= KVersionInt32Time {
+			rr.read(&frame.Progress)
+		} else {
+			var floatTime float32
+			rr.read(&floatTime)
+			frame.Progress = int32(floatTime)
 		}
 
-		frames = append(frames, frame)
+		rr.read(&frame.X)
+		rr.read(&frame.Y)
+		rr.read(&frame.Health)
+
+		var important uint8
+		rr.read(&important)
+		frame.Hit = important != 0
+
+		if res.Version < KVersionNegateY {
+			frame.Y = -frame.Y
+		}
+
+		if rr.err != nil {
+			return nil, fmt.Errorf("error parsing frame at index %d: %w", i, rr.err)
+		}
+		res.Frames[i] = frame
 	}
 
-	return &ReplayData{
-		ModState: GetMods(data),
-		Frames:   frames,
-	}, nil
-}
-
-func GetMods(data []byte) ModState {
-	state := ModState{
-		SpeedMultiplier: 1.0,
-		HardrockEnabled: false,
-	}
-	anchor := []byte("online_profile")
-	index := bytes.Index(data, anchor)
-	if index == -1 {
-		return state
-	}
-
-	searchStart := index + len(anchor)
-	bracketIndex := bytes.IndexByte(data[searchStart:], ']')
-	if bracketIndex == -1 {
-		return state
-	}
-
-	absBracketIndex := searchStart + bracketIndex
-
-	modRange := data[index:absBracketIndex]
-	if bytes.Contains(modRange, []byte("mod_hardrock")) {
-		state.HardrockEnabled = true
-	}
-
-	speedOffset := absBracketIndex + 2
-
-	if speedOffset+4 > len(data) {
-		return state
-	}
-
-	bits := binary.LittleEndian.Uint32(data[speedOffset : speedOffset+4])
-	state.SpeedMultiplier = math.Float32frombits(bits)
-
-	return state
+	return res, nil
 }

@@ -11,6 +11,7 @@ import (
 	"rhyplay/internal/ffmpeg"
 	"rhyplay/internal/game"
 	"rhyplay/internal/parser"
+	"strings"
 
 	"github.com/fogleman/gg"
 	"golang.org/x/image/font"
@@ -84,7 +85,7 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) (*Renderer, error) {
 		HitThreshold:        game.HitboxRadiusNormal + game.CursorRadiusNormal,
 	}
 	var noteScale, cursorScale, bound float64
-	if r.ModState.HardrockEnabled {
+	if strings.Contains(r.ScoreData.Mods, "mod_hardrock") { // TODO: fix incorrect constants for HR
 		noteScale = game.NoteUnitHR * resScale
 		bound = game.CursorBoundHR
 		c.BackgroundDrawBound = game.BackgroundDrawBoundHR
@@ -99,7 +100,7 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) (*Renderer, error) {
 	cursorScale = visualBoundPx / bound
 
 	at := s.Gameplay.ApproachDistance / s.Gameplay.ApproachRate
-	horizon := (1000 * at) * float64(r.ModState.SpeedMultiplier)
+	horizon := (1000 * at) * float64(r.ScoreData.Speed)
 	depthStep := s.Gameplay.ApproachDistance / horizon
 
 	noteConstants := NoteConstants{
@@ -108,7 +109,7 @@ func NewRenderer(b *parser.MapData, r *parser.ReplayData) (*Renderer, error) {
 		depthStep: depthStep,
 	}
 
-	starMultiplier := float64(r.ModState.SpeedMultiplier) * float64(b.StarRating)
+	starMultiplier := float64(r.ScoreData.Speed) * float64(b.StarRating)
 	easeBase := 100.0 - 12.0*starMultiplier
 	if easeBase < 5.0 {
 		easeBase = 5.0
@@ -164,7 +165,7 @@ func (r *Renderer) writeFrames(stdin io.WriteCloser, videoDuration float64) {
 	noteWindowIdx := 0
 
 	for currentTime := 0.0; currentTime <= videoDuration; currentTime += msPerFrame {
-		engineTime := currentTime * float64(r.Replay.ModState.SpeedMultiplier)
+		engineTime := currentTime * float64(r.Replay.ScoreData.Speed)
 		var replayWindow []RenderFrame
 		for replayIdx < len(r.RenderFrames) {
 			f := r.RenderFrames[replayIdx]
@@ -225,7 +226,7 @@ func (r *Renderer) Render(outputPath string, audioPath string) error {
 	}
 
 	replayEndTime := float64(r.Replay.Frames[len(r.Replay.Frames)-1].Progress)
-	videoDuration := replayEndTime / float64(r.Replay.ModState.SpeedMultiplier)
+	videoDuration := replayEndTime / float64(r.Replay.ScoreData.Speed)
 
 	port, progressChan, err := ffmpeg.StartProgressServer()
 	if err != nil {

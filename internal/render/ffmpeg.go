@@ -43,7 +43,7 @@ func (r *Renderer) prepareArgs(outputPath, audioPath string, progressPort int) (
 			sampleRate = 44100
 		}
 
-		filterComplex += fmt.Sprintf("[%d:a]asetrate=%d*%.6f,aresample=44100[bg];", musicIdx, sampleRate, r.Replay.ModState.SpeedMultiplier)
+		filterComplex += fmt.Sprintf("[%d:a]asetrate=%d*%.6f,aresample=44100[bg];", musicIdx, sampleRate, r.Replay.ScoreData.Speed)
 		audioMapLabel = "[bg]"
 		currentInputIdx++
 	}
@@ -56,7 +56,7 @@ func (r *Renderer) prepareArgs(outputPath, audioPath string, progressPort int) (
 	var hitLabels []string
 	for i, frame := range r.Replay.Frames {
 		if frame.Hit {
-			timestamp := (float64(frame.Progress) / 1000.0) / float64(r.Replay.ModState.SpeedMultiplier)
+			timestamp := (float64(frame.Progress) / 1000.0) / float64(r.Replay.ScoreData.Speed)
 			label := fmt.Sprintf("h%d", i)
 			filterComplex += fmt.Sprintf("[%d:a]adelay=%.0f|%.0f[%s];", hitIdx, timestamp*1000, timestamp*1000, label)
 			hitLabels = append(hitLabels, label)
