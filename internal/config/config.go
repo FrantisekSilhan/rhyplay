@@ -47,6 +47,8 @@ type Modifiers struct {
 }
 
 type Settings struct {
+	GamePath string `json:"game_path"`
+
 	Video struct {
 		Width  int `json:"width"`
 		Height int `json:"height"`
@@ -129,6 +131,10 @@ var Current *Settings
 
 func NewDefault() *Settings {
 	s := &Settings{}
+
+	home, _ := os.UserHomeDir()
+	s.GamePath = home + `\AppData\Roaming\CapoRhythia`
+
 	s.Video.Width, s.Video.Height, s.Video.FPS = 1920, 1080, 60
 	s.Gameplay.ApproachDistance, s.Gameplay.ApproachRate = 40.0, 40.0
 

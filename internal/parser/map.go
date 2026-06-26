@@ -104,12 +104,7 @@ func ParseMapZip(path string) (*MapData, []byte, error) {
 		return nil, nil, fmt.Errorf("failed to extract audio: %w", err)
 	}
 
-	for i := range mapData.Notes {
-		note := mapData.Notes[i]
-		mapData.Notes[i] = toNoteSpace(note.X, note.Y)
-		mapData.Notes[i].Time = note.Time
-		mapData.Notes[i].NoteIdx = i
-	}
+	mapData.Normalize()
 
 	return &mapData, audioBytes, nil
 }
@@ -323,4 +318,13 @@ func ExtractAudioBytes(path string) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("file 'audio' not found inside rhm file")
+}
+
+func (m *MapData) Normalize() {
+	for i := range m.Notes {
+		note := m.Notes[i]
+		m.Notes[i] = toNoteSpace(note.X, note.Y)
+		m.Notes[i].Time = note.Time
+		m.Notes[i].NoteIdx = i
+	}
 }
